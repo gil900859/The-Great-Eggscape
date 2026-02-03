@@ -54,6 +54,7 @@ const App: React.FC = () => {
   const [eggState, setEggState] = useState<EggState>({ stage: EggEvolutionStage.EGG, damage: 0 });
   const [unlockedAbilityMessage, setUnlockedAbilityMessage] = useState<string | null>(null);
   const [showDevSelector, setShowDevSelector] = useState(false);
+  const [devSelectedStage, setDevSelectedStage] = useState<EggEvolutionStage>(EggEvolutionStage.EGG);
 
   const [player, setPlayer] = useState<Player>({
     x: PLAYER_START_X, y: PLAYER_START_Y, width: PLAYER_WIDTH, height: PLAYER_HEIGHT,
@@ -92,12 +93,7 @@ const App: React.FC = () => {
   const jumpToLevel = (index: number) => {
     const safeIndex = Math.max(0, Math.min(index, LEVELS.length - 1));
     setCurrentLevelIndex(safeIndex);
-    let stage = EggEvolutionStage.EGG;
-    for (let i = 0; i < safeIndex; i++) {
-        const trans = LEVELS[i].eggTransformation;
-        if (trans) stage = trans;
-    }
-    setEggState({ stage, damage: 0 });
+    setEggState({ stage: devSelectedStage, damage: 0 });
     setPlayer(p => ({ ...p, x: PLAYER_START_X, y: PLAYER_START_Y, velocityX: 0, velocityY: 0, isDashing: false, isHighJumpActive: false }));
     setCameraX(0);
     setShowDevSelector(false);
@@ -317,9 +313,11 @@ const App: React.FC = () => {
 
   useEffect(() => {
     const down = (e: KeyboardEvent) => {
+      if (['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', ' '].includes(e.key)) {
+        e.preventDefault();
+      }
       keysPressed.current[e.key] = true;
-      if (e.key === ' ') e.preventDefault();
-
+      
       if (e.key.toLowerCase() === 'g') {
         setPlayer(p => ({ ...p, isDevFlyMode: !p.isDevFlyMode }));
       }
@@ -343,19 +341,37 @@ const App: React.FC = () => {
     return () => { window.removeEventListener('keydown', down); window.removeEventListener('keyup', up); };
   }, [gameStatus]);
 
+  const evolutionStages = Object.values(EggEvolutionStage);
+
   return (
-    <div className="min-h-screen w-full flex items-center justify-center p-4">
+    <div className="w-full h-full flex items-center justify-center">
       {gameStatus === GameStatus.START_SCREEN && !showDevSelector ? <StartScreen onStartGame={startGame} /> :
        gameStatus === GameStatus.GAME_WIN && !showDevSelector ? 
        <EndScreen onRestartGame={resetGame} /> :
-       <div className="flex flex-col items-center w-full max-w-4xl relative">
+       <div className="flex flex-col items-center w-full h-full relative">
          {currentLevel && <GameCanvas currentLevel={currentLevel} player={player} eggStage={eggState.stage} damage={eggState.damage} cameraX={cameraX} />}
          {currentLevel && gameStatus === GameStatus.PLAYING && <PlayerHUD eggStage={eggState.stage} damage={eggState.damage} unlockedAbilityMessage={unlockedAbilityMessage} />}
          
          {showDevSelector && (
            <div className="absolute inset-0 bg-black/90 z-[60] p-8 overflow-y-auto rounded-lg flex flex-col items-center animate-fade-in">
-             <h2 className="text-3xl font-bold text-yellow-400 mb-6">DEV LEVEL SELECTOR</h2>
-             <div className="grid grid-cols-2 md:grid-cols-3 gap-4 w-full">
+             <h2 className="text-3xl font-bold text-yellow-400 mb-4">DEV SELECTOR</h2>
+             
+             <div className="mb-6 w-full max-w-2xl">
+                <h3 className="text-xl font-semibold text-white mb-2 text-center">Select Evolution Stage</h3>
+                <div className="flex justify-center gap-2 flex-wrap">
+                    {evolutionStages.map(stage => (
+                        <button
+                            key={stage}
+                            onClick={() => setDevSelectedStage(stage)}
+                            className={`px-4 py-2 text-sm font-bold rounded-full transition-colors ${devSelectedStage === stage ? 'bg-yellow-500 text-gray-900' : 'bg-gray-700 hover:bg-gray-600 text-white'}`}
+                        >
+                            {stage}
+                        </button>
+                    ))}
+                </div>
+             </div>
+
+             <div className="grid grid-cols-2 md:grid-cols-3 gap-4 w-full max-w-2xl">
                {LEVELS.map((lvl, idx) => (
                  <button 
                    key={lvl.id}
