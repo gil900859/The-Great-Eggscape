@@ -16,6 +16,17 @@ const StartScreen: React.FC<StartScreenProps> = ({ onStartGame }) => {
         One egg. One escape. Before the fry.
       </p>
 
+      <div className="relative w-48 h-48 mb-8 flex items-center justify-center">
+        {/* Simple Egg Visual */}
+        <div className="absolute w-full h-full bg-white rounded-full border-4 border-yellow-400 shadow-lg egg-glow transform -rotate-6"></div>
+        <div className="absolute text-7xl z-10 animate-pulse-slow">🥚</div>
+      </div>
+
+      <p className="text-md md:text-lg text-gray-200 mb-6 max-w-lg">
+        A fragile duck egg escapes a dangerous world to save its mother. Survive by rolling,
+        adapting, and enduring. Breaking is not failure—it is growth.
+      </p>
+
       <button
         onClick={onStartGame}
         className="px-8 py-4 bg-yellow-500 hover:bg-yellow-600 text-gray-900 text-2xl font-bold rounded-full shadow-lg transform hover:scale-105 transition-all duration-300 ease-in-out uppercase tracking-wider focus:outline-none focus:ring-4 focus:ring-yellow-400 focus:ring-opacity-75"
