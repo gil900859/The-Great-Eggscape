@@ -1,0 +1,5 @@
+{
+  "name": "The Great Eggscape",
+  "description": "A 2D side-scrolling platformer about a fragile duck egg escaping a dangerous world to save its mother before she is cooked. The game emphasizes momentum, environmental hazards, and evolution.",
+  "requestFramePermissions": []
+}
