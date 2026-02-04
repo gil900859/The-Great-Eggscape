@@ -16,7 +16,8 @@ export default defineConfig(({ mode }) => {
       },
       resolve: {
         alias: {
-          '@': path.resolve(__dirname, '.'),
+          // Fix: Replace __dirname with path.resolve('.') for Vite compatibility
+          '@': path.resolve('.'),
         }
       }
     };

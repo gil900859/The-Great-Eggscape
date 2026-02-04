@@ -378,7 +378,7 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
   return (
     <canvas
       ref={canvasRef}
-      className="w-full h-[400px] rounded-t-lg shadow-2xl bg-black border-b-4 border-slate-700"
+      className="w-full h-full shadow-2xl bg-black"
     />
   );
 };

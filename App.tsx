@@ -54,6 +54,9 @@ const App: React.FC = () => {
   const [eggState, setEggState] = useState<EggState>({ stage: EggEvolutionStage.EGG, damage: 0 });
   const [unlockedAbilityMessage, setUnlockedAbilityMessage] = useState<string | null>(null);
   const [showDevSelector, setShowDevSelector] = useState(false);
+  const [devSelectedEggStage, setDevSelectedEggStage] = useState<EggEvolutionStage>(EggEvolutionStage.EGG); // Added devSelectedEggStage
+  // Fix: Declare isFullscreen state
+  const [isFullscreen, setIsFullscreen] = useState(false);
 
   const [player, setPlayer] = useState<Player>({
     x: PLAYER_START_X, y: PLAYER_START_Y, width: PLAYER_WIDTH, height: PLAYER_HEIGHT,
@@ -69,6 +72,7 @@ const App: React.FC = () => {
   const highJumpTimerRef = useRef(0);
   const damageCooldownRef = useRef(0);
   const gameLoopRef = useRef<number | null>(null);
+  const appContainerRef = useRef<HTMLDivElement>(null); // Ref for the main app container to request fullscreen
 
   const currentLevel: Level = LEVELS[currentLevelIndex] || LEVELS[0];
 
@@ -92,16 +96,16 @@ const App: React.FC = () => {
   const jumpToLevel = (index: number) => {
     const safeIndex = Math.max(0, Math.min(index, LEVELS.length - 1));
     setCurrentLevelIndex(safeIndex);
-    let stage = EggEvolutionStage.EGG;
-    for (let i = 0; i < safeIndex; i++) {
-        const trans = LEVELS[i].eggTransformation;
-        if (trans) stage = trans;
-    }
-    setEggState({ stage, damage: 0 });
+    // Use the devSelectedEggStage for the egg's evolution when jumping to a level via dev menu
+    setEggState({ stage: devSelectedEggStage, damage: 0 });
     setPlayer(p => ({ ...p, x: PLAYER_START_X, y: PLAYER_START_Y, velocityX: 0, velocityY: 0, isDashing: false, isHighJumpActive: false }));
     setCameraX(0);
     setShowDevSelector(false);
     if (gameStatus === GameStatus.START_SCREEN) setGameStatus(GameStatus.PLAYING);
+  };
+
+  const handleDevStageChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
+    setDevSelectedEggStage(e.target.value as EggEvolutionStage);
   };
 
   const handleLevelCompletion = useCallback(() => {
@@ -304,7 +308,11 @@ const App: React.FC = () => {
   }, [player, eggState.stage, currentLevel, handleLevelCompletion]);
 
   useEffect(() => {
-    if (gameStatus !== GameStatus.PLAYING) return;
+    if (gameStatus !== GameStatus.PLAYING) {
+        if(gameLoopRef.current) cancelAnimationFrame(gameLoopRef.current);
+        gameLoopRef.current = null;
+        return;
+    }
     const loop = () => {
       updateGame();
       gameLoopRef.current = requestAnimationFrame(loop);
@@ -325,7 +333,12 @@ const App: React.FC = () => {
       }
 
       if (e.key.toLowerCase() === 'z') {
-        setShowDevSelector(prev => !prev);
+        setShowDevSelector(prev => {
+          if (!prev) { // If opening selector, set initial stage
+            setDevSelectedEggStage(eggState.stage);
+          }
+          return !prev;
+        });
       }
 
       if (e.key.length === 1) {
@@ -341,10 +354,61 @@ const App: React.FC = () => {
     window.addEventListener('keydown', down);
     window.addEventListener('keyup', up);
     return () => { window.removeEventListener('keydown', down); window.removeEventListener('keyup', up); };
-  }, [gameStatus]);
+  }, [gameStatus, eggState.stage]);
+
+  const toggleFullscreen = useCallback(() => {
+    const element = appContainerRef.current;
+    if (!element) return;
+
+    if (!document.fullscreenElement) {
+      if (element.requestFullscreen) { // Check if requestFullscreen is available
+        element.requestFullscreen().catch((err) => {
+          console.error(`Error attempting to enable fullscreen mode: ${err.message} (${err.name})`);
+        });
+      } else {
+        console.warn("Fullscreen API's requestFullscreen method is not available on this element or in this browser.");
+      }
+    } else {
+      if (document.exitFullscreen) { // Also check for exitFullscreen
+        document.exitFullscreen();
+      } else {
+        console.warn("Fullscreen API's exitFullscreen method is not available.");
+      }
+    }
+  }, []);
+
+  useEffect(() => {
+    const fullscreenChangeHandler = () => {
+      // Fix: Use setIsFullscreen to update the state
+      setIsFullscreen(!!document.fullscreenElement);
+    };
+
+    document.addEventListener('fullscreenchange', fullscreenChangeHandler);
+    return () => {
+      document.removeEventListener('fullscreenchange', fullscreenChangeHandler);
+    };
+  }, []);
 
   return (
-    <div className="min-h-screen w-full flex items-center justify-center p-4">
+    <div ref={appContainerRef} className="min-h-screen w-full flex items-center justify-center p-4 relative">
+      <button
+        onClick={toggleFullscreen}
+        className="absolute top-4 right-4 bg-gray-700 hover:bg-gray-600 text-white p-2 rounded-full z-50 shadow-md transition-colors"
+        // Fix: Use isFullscreen for aria-label
+        aria-label={isFullscreen ? "Exit fullscreen" : "Enter fullscreen"}
+      >
+        {/* Fix: Use isFullscreen to conditionally render icons */}
+        {isFullscreen ? (
+          <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-6 h-6">
+            <path strokeLinecap="round" strokeLinejoin="round" d="M9 9V4.5M9 9H4.5M9 9L3.75 3.75M9 15v4.5M9 15H4.5M9 15L3.75 20.25M15 9V4.5M15 9H19.5M15 9L20.25 3.75M15 15v4.5M15 15H19.5M15 15L20.25 20.25" />
+          </svg>
+        ) : (
+          <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-6 h-6">
+            <path strokeLinecap="round" strokeLinejoin="round" d="M3.75 3.75v4.5m0-4.5h4.5m-4.5 0L9 9M3.75 20.25v-4.5m0 4.5h4.5m-4.5 0L9 15M20.25 3.75v4.5m0-4.5h-4.5m4.5 0L15 9m5.25 11.25v-4.5m0 4.5h-4.5m4.5 0L15 15" />
+          </svg>
+        )}
+      </button>
+
       {gameStatus === GameStatus.START_SCREEN && !showDevSelector ? <StartScreen onStartGame={startGame} /> :
        gameStatus === GameStatus.GAME_WIN && !showDevSelector ? 
        <EndScreen onRestartGame={resetGame} /> :
@@ -354,7 +418,24 @@ const App: React.FC = () => {
          
          {showDevSelector && (
            <div className="absolute inset-0 bg-black/90 z-[60] p-8 overflow-y-auto rounded-lg flex flex-col items-center animate-fade-in">
-             <h2 className="text-3xl font-bold text-yellow-400 mb-6">DEV LEVEL SELECTOR</h2>
+             <h2 className="text-3xl font-bold text-yellow-400 mb-6">DEV MENU</h2>
+
+             {/* Evolution Stage Selector */}
+             <div className="mb-6 flex flex-col items-center w-full max-w-xs">
+                 <label htmlFor="dev-egg-stage-select" className="text-gray-300 mb-2 text-lg">Set Evolution Stage:</label>
+                 <select
+                     id="dev-egg-stage-select"
+                     value={devSelectedEggStage}
+                     onChange={handleDevStageChange}
+                     className="bg-gray-800 text-white p-2 rounded border border-gray-600 focus:ring-yellow-400 focus:border-yellow-400 w-full"
+                 >
+                     {Object.values(EggEvolutionStage).map(stage => (
+                         <option key={stage} value={stage}>{stage}</option>
+                     ))}
+                 </select>
+             </div>
+
+             <h3 className="text-2xl font-bold text-yellow-300 mb-4">Jump to Level:</h3>
              <div className="grid grid-cols-2 md:grid-cols-3 gap-4 w-full">
                {LEVELS.map((lvl, idx) => (
                  <button 
@@ -372,7 +453,7 @@ const App: React.FC = () => {
                onClick={() => setShowDevSelector(false)}
                className="mt-8 px-6 py-2 bg-red-600 text-white rounded-full font-bold hover:bg-red-700"
              >
-               Close Selector (Z)
+               Close Dev Menu (Z)
              </button>
            </div>
          )}
@@ -388,7 +469,7 @@ const App: React.FC = () => {
                 <h2 className="text-5xl font-extrabold text-red-500 mb-8">YOU CRACKED!</h2>
                 <button
                     onClick={resetGame}
-                    className="px-8 py-4 bg-yellow-500 hover:bg-yellow-600 text-gray-900 text-2xl font-bold rounded-full shadow-lg transform hover:scale-105 transition-all duration-300 ease-in-out uppercase tracking-wider focus:outline-none focus:ring-4 focus:ring-yellow-400 focus:ring-opacity-75"
+                    className="px-8 py-4 bg-yellow-500 hover:bg-yellow-600 text-gray-900 text-2xl font-bold rounded-full shadow-lg transform hover:scale-105 transition-all duration-300 ease-in-out uppercase tracking-wider focus:outline-none focus:ring-4 focus:ring-yellow-400 focus:ring-opacity_75"
                 >
                     Retry
                 </button>
