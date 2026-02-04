@@ -1,6 +1,6 @@
 import React from 'react';
-import { EggEvolutionStage, Level } from '../types';
-import { ABILITY_MESSAGES, MAX_HEALTH } from '../constants';
+import { EggEvolutionStage } from '../types';
+import { MAX_HEALTH } from '../constants';
 
 interface PlayerHUDProps {
   eggStage: EggEvolutionStage;
@@ -23,9 +23,9 @@ const PlayerHUD: React.FC<PlayerHUDProps> = ({
   }
 
   return (
-    <div className="absolute top-2 left-1/2 -translate-x-1/2 w-auto p-2 z-20">
-      <div className="flex flex-col items-center gap-2 bg-gray-800 bg-opacity-80 p-3 rounded-lg shadow-lg">
-        {/* Egg State & Health */}
+    <div className="absolute top-2 left-0 right-0 px-4 z-20 flex justify-center items-start pointer-events-none">
+      {/* Center HUD */}
+      <div className="flex flex-col items-center gap-2 bg-gray-800 bg-opacity-80 p-3 rounded-lg shadow-lg pointer-events-auto">
         <div className="text-center">
           <div className="flex items-center justify-center gap-2">
             <span className="text-3xl" role="img" aria-label="egg-emoji">
@@ -51,9 +51,9 @@ const PlayerHUD: React.FC<PlayerHUDProps> = ({
         </div>
       </div>
 
-      {/* Unlocked Ability Message */}
+      {/* Unlocked Ability Message - Centered but lower */}
       {unlockedAbilityMessage && (
-        <div className="absolute left-1/2 -translate-x-1/2 top-24 bg-yellow-600 text-gray-900 px-4 py-2 rounded-full shadow-lg text-lg font-bold animate-pulse-once">
+        <div className="fixed left-1/2 -translate-x-1/2 top-32 bg-yellow-600 text-gray-900 px-6 py-3 rounded-full shadow-2xl text-lg font-bold animate-pulse-once whitespace-nowrap z-50 border-4 border-yellow-400">
           {unlockedAbilityMessage}
         </div>
       )}
