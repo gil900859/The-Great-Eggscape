@@ -4,6 +4,7 @@ import StartScreen from './components/StartScreen';
 import EndScreen from './components/EndScreen';
 import GameCanvas from './components/GameCanvas';
 import PlayerHUD from './components/PlayerHUD';
+import GameOverScreen from './components/GameOverScreen';
 import {
   EggEvolutionStage,
   GameStatus,
@@ -43,16 +44,15 @@ import {
   TRAMPOLINE_BOUNCE_STRENGTH,
   SPEED_RAMP_BOOST_FACTOR,
   WIND_STRENGTH_FACTOR,
+  DUCK_FLY_STRENGTH,
 } from './constants';
 
-// Helper function to check collision between objects
 const checkCollision = (obj1: GameObject | Player, obj2: GameObject | WindZoneObject): boolean => {
   const [x1, y1, w1, h1] = Array.isArray(obj1) ? obj1 : [obj1.x, obj1.y, obj1.width, obj1.height];
   const [x2, y2, w2, h2] = obj2;
   return x1 < x2 + w2 && x1 + w1 > x2 && y1 < y2 + h2 && y1 + h1 > y2;
 };
 
-// Order of evolution for tracking progress
 const evolutionOrder = [
   EggEvolutionStage.EGG,
   EggEvolutionStage.EYES,
@@ -61,7 +61,6 @@ const evolutionOrder = [
   EggEvolutionStage.DUCK,
 ];
 
-// Determine the evolution stage based on level index
 const getNaturalStageForLevel = (levelIndex: number): EggEvolutionStage => {
   let stage = EggEvolutionStage.EGG;
   for (let i = 0; i < levelIndex; i++) {
@@ -99,11 +98,11 @@ const App: React.FC = () => {
   const damageCooldownRef = useRef(0);
   const gameLoopRef = useRef<number | null>(null);
   const jumpTimer = useRef(0);
+  const flapCooldownRef = useRef(0);
 
   const currentLevel: Level = LEVELS[currentLevelIndex] || LEVELS[0];
 
-  // Reset the entire game state
-  const resetGame = useCallback(() => {
+  const resetToMainMenu = useCallback(() => {
     setCurrentLevelIndex(0);
     setEggState({ stage: EggEvolutionStage.EGG, damage: 0 });
     setUnlockedAbilityMessage(null);
@@ -118,9 +117,23 @@ const App: React.FC = () => {
     setGameStatus(GameStatus.START_SCREEN);
   }, []);
 
+  const restartLevel = useCallback(() => {
+    setEggState(prev => ({ ...prev, damage: 0 }));
+    setPlayer(p => ({
+      ...p,
+      x: PLAYER_START_X,
+      y: PLAYER_START_Y,
+      velocityX: 0,
+      velocityY: 0,
+      isDashing: false,
+      isHighJumpActive: false,
+    }));
+    setCameraX(0);
+    setGameStatus(GameStatus.PLAYING);
+  }, []);
+
   const startGame = useCallback(() => setGameStatus(GameStatus.PLAYING), []);
 
-  // Developer tool to jump to a specific level
   const jumpToLevel = (index: number) => {
     const safeIndex = Math.max(0, Math.min(index, LEVELS.length - 1));
     setCurrentLevelIndex(safeIndex);
@@ -128,10 +141,11 @@ const App: React.FC = () => {
     setEggState({ stage: naturalStage, damage: 0 });
     setPlayer(p => ({ ...p, x: PLAYER_START_X, y: PLAYER_START_Y, velocityX: 0, velocityY: 0, isDashing: false, isHighJumpActive: false }));
     setCameraX(0);
-    if (gameStatus === GameStatus.START_SCREEN) setGameStatus(GameStatus.PLAYING);
+    if (gameStatus === GameStatus.START_SCREEN || gameStatus === GameStatus.GAME_OVER) {
+      setGameStatus(GameStatus.PLAYING);
+    }
   };
 
-  // Handle logic when a level is completed
   const handleLevelCompletion = useCallback(() => {
     if (gameStatus !== GameStatus.PLAYING) return;
     setGameStatus(GameStatus.LEVEL_COMPLETE);
@@ -168,7 +182,13 @@ const App: React.FC = () => {
     }, 2000);
   }, [currentLevel, gameStatus]);
 
-  // Main game update loop
+  // Centralized Death Check
+  useEffect(() => {
+    if (eggState.damage >= MAX_HEALTH && gameStatus === GameStatus.PLAYING) {
+      setGameStatus(GameStatus.GAME_OVER);
+    }
+  }, [eggState.damage, gameStatus]);
+
   const updateGame = useCallback(() => {
     const now = Date.now();
     setPlayer(p => {
@@ -190,6 +210,11 @@ const App: React.FC = () => {
         x += velocityX; y += velocityY;
         isOnGround = false; isSwimming = false;
       } else {
+        const stageIdx = evolutionOrder.indexOf(eggState.stage);
+        const hasLegs = stageIdx >= evolutionOrder.indexOf(EggEvolutionStage.LEGS);
+        const hasWings = stageIdx >= evolutionOrder.indexOf(EggEvolutionStage.WINGS);
+        const isDuck = eggState.stage === EggEvolutionStage.DUCK;
+
         const acc = isOnGround ? 0.8 : 0.4;
         let speedCap = isSwimming ? WATER_MOVE_SPEED : MOVE_SPEED;
         const fric = isSwimming ? WATER_FRICTION_FACTOR : (isOnGround ? FRICTION_FACTOR : AIR_FRICTION_FACTOR);
@@ -209,12 +234,11 @@ const App: React.FC = () => {
            velocityX *= 0.95;
         }
 
-        const hasLegs = eggState.stage >= EggEvolutionStage.LEGS;
         let currentJumpPower = hasLegs ? JUMP_STRENGTH : BASE_JUMP_STRENGTH;
         if (isHighJumpActive) currentJumpPower *= JUMP_BOOST_MULTIPLIER;
 
         if (move['ArrowUp']) {
-          if (isOnGround || (isSwimming && eggState.stage === EggEvolutionStage.DUCK)) {
+          if (isOnGround || (isSwimming && isDuck)) {
             velocityY = currentJumpPower;
             isOnGround = false;
             isJumping = true;
@@ -236,9 +260,16 @@ const App: React.FC = () => {
           jumpTimer.current = 0;
         }
 
-        if (eggState.stage >= EggEvolutionStage.WINGS && (move[' '] || move['Space']) && velocityY > 0 && !isSwimming) {
-          velocityY *= GLIDE_GRAVITY_FACTOR;
-          isGliding = true;
+        if (hasWings && (move[' '] || move['Space']) && !isSwimming) {
+          if (isDuck && !isOnGround && now > flapCooldownRef.current) {
+            velocityY = DUCK_FLY_STRENGTH;
+            isGliding = false;
+            isJumping = true;
+            flapCooldownRef.current = now + 150;
+          } else if (velocityY > 0) {
+            velocityY *= GLIDE_GRAVITY_FACTOR;
+            isGliding = true;
+          }
         } else {
           isGliding = false;
         }
@@ -272,7 +303,7 @@ const App: React.FC = () => {
                  velocityY = 0;
                  isOnGround = true;
                  isJumping = false;
-                 isDashing = false; // Fix: Reset dashing when landing
+                 isDashing = false; 
               } else if (p.y >= platform[1] + platform[3] - 10 && velocityY < 0) {
                  y = platform[1] + platform[3];
                  velocityY = 0;
@@ -290,7 +321,7 @@ const App: React.FC = () => {
            if (checkCollision({ ...p, x, y }, t)) {
               velocityY = TRAMPOLINE_BOUNCE_STRENGTH;
               isOnGround = false;
-              isDashing = false; // Reset dash on trampoline bounce too
+              isDashing = false; 
            }
         });
 
@@ -303,17 +334,11 @@ const App: React.FC = () => {
         if (now > damageCooldownRef.current) {
           currentLevel.hazards.forEach(h => {
             if (checkCollision({ ...p, x, y }, h)) {
-              setEggState(prev => {
-                const newDamage = prev.damage + HAZARD_DAMAGE;
-                if (newDamage >= MAX_HEALTH && prev.stage !== EggEvolutionStage.DUCK) {
-                  setTimeout(resetGame, 100);
-                }
-                return { ...prev, damage: newDamage };
-              });
+              setEggState(prev => ({ ...prev, damage: prev.damage + HAZARD_DAMAGE }));
               damageCooldownRef.current = now + DAMAGE_COOLDOWN;
               velocityY = -5;
               velocityX = (x < h[0] + h[2]/2) ? -8 : 8;
-              isDashing = false; // Reset dash on damage
+              isDashing = false; 
             }
           });
         }
@@ -323,7 +348,7 @@ const App: React.FC = () => {
         }
 
         if (y > GAME_HEIGHT + 100) {
-           setEggState(prev => ({ ...prev, damage: prev.damage + 20 }));
+           setEggState(prev => ({ ...prev, damage: prev.damage + 25 }));
            x = PLAYER_START_X;
            y = PLAYER_START_Y;
            velocityX = 0;
@@ -342,7 +367,7 @@ const App: React.FC = () => {
     });
 
     gameLoopRef.current = requestAnimationFrame(updateGame);
-  }, [player.x, currentLevel, gameStatus, handleLevelCompletion, resetGame, eggState.stage]);
+  }, [player.x, currentLevel, gameStatus, handleLevelCompletion, eggState.stage]);
 
   useEffect(() => {
     if (gameStatus === GameStatus.PLAYING) {
@@ -356,7 +381,10 @@ const App: React.FC = () => {
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       keysPressed.current[e.key] = true;
-      
+      if (['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', ' '].includes(e.key)) {
+        e.preventDefault();
+      }
+
       typedSequence.current += e.key.toLowerCase();
       if (sequenceTimer.current) clearTimeout(sequenceTimer.current);
       sequenceTimer.current = window.setTimeout(() => {
@@ -385,6 +413,7 @@ const App: React.FC = () => {
 
   const toggleDevFly = () => setPlayer(p => ({ ...p, isDevFlyMode: !p.isDevFlyMode }));
   const toggleSpeedGlitch = () => setPlayer(p => ({ ...p, isGottaGoFastActive: !p.isGottaGoFastActive }));
+  const fullHeal = () => setEggState(p => ({ ...p, damage: 0 }));
 
   return (
     <div className="relative w-full h-full flex items-center justify-center overflow-hidden">
@@ -407,13 +436,20 @@ const App: React.FC = () => {
         </>
       )}
 
+      {gameStatus === GameStatus.GAME_OVER && (
+        <GameOverScreen 
+          onRestartLevel={restartLevel} 
+          onMainMenu={resetToMainMenu} 
+        />
+      )}
+
       {gameStatus === GameStatus.LEVEL_COMPLETE && (
         <div className="absolute inset-0 bg-black bg-opacity-70 flex items-center justify-center z-50">
            <h2 className="text-4xl font-bold text-yellow-400 animate-bounce">LEVEL COMPLETE!</h2>
         </div>
       )}
 
-      {gameStatus === GameStatus.GAME_WIN && <EndScreen onRestartGame={resetGame} />}
+      {gameStatus === GameStatus.GAME_WIN && <EndScreen onRestartGame={resetToMainMenu} />}
 
       {showDevSelector && (
         <div className="absolute top-20 right-4 bg-gray-900 border-2 border-yellow-500 p-4 rounded-xl z-50 text-white shadow-2xl w-64 max-h-[80vh] overflow-y-auto pointer-events-auto">
@@ -436,6 +472,12 @@ const App: React.FC = () => {
                 className={`px-3 py-2 text-sm rounded font-bold transition-colors ${player.isGottaGoFastActive ? 'bg-blue-600 text-white' : 'bg-gray-700 text-gray-300'}`}
               >
                 Speed Glitch: {player.isGottaGoFastActive ? 'ON' : 'OFF'}
+              </button>
+              <button 
+                onClick={fullHeal} 
+                className="px-3 py-2 text-sm rounded font-bold bg-green-700 text-white hover:bg-green-600"
+              >
+                Full Heal Shell
               </button>
             </div>
           </div>
