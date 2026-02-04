@@ -54,9 +54,7 @@ const App: React.FC = () => {
   const [eggState, setEggState] = useState<EggState>({ stage: EggEvolutionStage.EGG, damage: 0 });
   const [unlockedAbilityMessage, setUnlockedAbilityMessage] = useState<string | null>(null);
   const [showDevSelector, setShowDevSelector] = useState(false);
-  const [devSelectedEggStage, setDevSelectedEggStage] = useState<EggEvolutionStage>(EggEvolutionStage.EGG); // Added devSelectedEggStage
-  // Fix: Declare isFullscreen state
-  const [isFullscreen, setIsFullscreen] = useState(false);
+  const [devSelectedStage, setDevSelectedStage] = useState<EggEvolutionStage>(EggEvolutionStage.EGG);
 
   const [player, setPlayer] = useState<Player>({
     x: PLAYER_START_X, y: PLAYER_START_Y, width: PLAYER_WIDTH, height: PLAYER_HEIGHT,
@@ -72,7 +70,6 @@ const App: React.FC = () => {
   const highJumpTimerRef = useRef(0);
   const damageCooldownRef = useRef(0);
   const gameLoopRef = useRef<number | null>(null);
-  const appContainerRef = useRef<HTMLDivElement>(null); // Ref for the main app container to request fullscreen
 
   const currentLevel: Level = LEVELS[currentLevelIndex] || LEVELS[0];
 
@@ -96,16 +93,11 @@ const App: React.FC = () => {
   const jumpToLevel = (index: number) => {
     const safeIndex = Math.max(0, Math.min(index, LEVELS.length - 1));
     setCurrentLevelIndex(safeIndex);
-    // Use the devSelectedEggStage for the egg's evolution when jumping to a level via dev menu
-    setEggState({ stage: devSelectedEggStage, damage: 0 });
+    setEggState({ stage: devSelectedStage, damage: 0 });
     setPlayer(p => ({ ...p, x: PLAYER_START_X, y: PLAYER_START_Y, velocityX: 0, velocityY: 0, isDashing: false, isHighJumpActive: false }));
     setCameraX(0);
     setShowDevSelector(false);
     if (gameStatus === GameStatus.START_SCREEN) setGameStatus(GameStatus.PLAYING);
-  };
-
-  const handleDevStageChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
-    setDevSelectedEggStage(e.target.value as EggEvolutionStage);
   };
 
   const handleLevelCompletion = useCallback(() => {
@@ -308,11 +300,7 @@ const App: React.FC = () => {
   }, [player, eggState.stage, currentLevel, handleLevelCompletion]);
 
   useEffect(() => {
-    if (gameStatus !== GameStatus.PLAYING) {
-        if(gameLoopRef.current) cancelAnimationFrame(gameLoopRef.current);
-        gameLoopRef.current = null;
-        return;
-    }
+    if (gameStatus !== GameStatus.PLAYING) return;
     const loop = () => {
       updateGame();
       gameLoopRef.current = requestAnimationFrame(loop);
@@ -325,20 +313,17 @@ const App: React.FC = () => {
 
   useEffect(() => {
     const down = (e: KeyboardEvent) => {
+      if (['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', ' '].includes(e.key)) {
+        e.preventDefault();
+      }
       keysPressed.current[e.key] = true;
-      if (e.key === ' ') e.preventDefault();
-
+      
       if (e.key.toLowerCase() === 'g') {
         setPlayer(p => ({ ...p, isDevFlyMode: !p.isDevFlyMode }));
       }
 
       if (e.key.toLowerCase() === 'z') {
-        setShowDevSelector(prev => {
-          if (!prev) { // If opening selector, set initial stage
-            setDevSelectedEggStage(eggState.stage);
-          }
-          return !prev;
-        });
+        setShowDevSelector(prev => !prev);
       }
 
       if (e.key.length === 1) {
@@ -354,128 +339,88 @@ const App: React.FC = () => {
     window.addEventListener('keydown', down);
     window.addEventListener('keyup', up);
     return () => { window.removeEventListener('keydown', down); window.removeEventListener('keyup', up); };
-  }, [gameStatus, eggState.stage]);
+  }, [gameStatus]);
 
-  const toggleFullscreen = useCallback(() => {
-    const element = appContainerRef.current;
-    if (!element) return;
+  const evolutionStages = Object.values(EggEvolutionStage);
 
-    if (!document.fullscreenElement) {
-      if (element.requestFullscreen) { // Check if requestFullscreen is available
-        element.requestFullscreen().catch((err) => {
-          console.error(`Error attempting to enable fullscreen mode: ${err.message} (${err.name})`);
-        });
-      } else {
-        console.warn("Fullscreen API's requestFullscreen method is not available on this element or in this browser.");
-      }
-    } else {
-      if (document.exitFullscreen) { // Also check for exitFullscreen
-        document.exitFullscreen();
-      } else {
-        console.warn("Fullscreen API's exitFullscreen method is not available.");
-      }
+  const renderContent = () => {
+    if (gameStatus === GameStatus.START_SCREEN && !showDevSelector) {
+        return <StartScreen onStartGame={startGame} />;
     }
-  }, []);
+    if (gameStatus === GameStatus.GAME_WIN && !showDevSelector) {
+        return <EndScreen onRestartGame={resetGame} />;
+    }
 
-  useEffect(() => {
-    const fullscreenChangeHandler = () => {
-      // Fix: Use setIsFullscreen to update the state
-      setIsFullscreen(!!document.fullscreenElement);
-    };
-
-    document.addEventListener('fullscreenchange', fullscreenChangeHandler);
-    return () => {
-      document.removeEventListener('fullscreenchange', fullscreenChangeHandler);
-    };
-  }, []);
+    return (
+        <div className="w-full h-full relative bg-black flex justify-center items-center">
+             {currentLevel && <GameCanvas currentLevel={currentLevel} player={player} eggStage={eggState.stage} damage={eggState.damage} cameraX={cameraX} />}
+             {currentLevel && gameStatus === GameStatus.PLAYING && <PlayerHUD eggStage={eggState.stage} damage={eggState.damage} unlockedAbilityMessage={unlockedAbilityMessage} />}
+             
+             {showDevSelector && (
+               <div className="absolute inset-0 bg-black/90 z-[60] p-8 overflow-y-auto rounded-lg flex flex-col items-center animate-fade-in">
+                 <h2 className="text-3xl font-bold text-yellow-400 mb-4">DEV SELECTOR</h2>
+                 
+                 <div className="mb-6 w-full max-w-2xl">
+                    <h3 className="text-xl font-semibold text-white mb-2 text-center">Select Evolution Stage</h3>
+                    <div className="flex justify-center gap-2 flex-wrap">
+                        {evolutionStages.map(stage => (
+                            <button
+                                key={stage}
+                                onClick={() => setDevSelectedStage(stage)}
+                                className={`px-4 py-2 text-sm font-bold rounded-full transition-colors ${devSelectedStage === stage ? 'bg-yellow-500 text-gray-900' : 'bg-gray-700 hover:bg-gray-600 text-white'}`}
+                            >
+                                {stage}
+                            </button>
+                        ))}
+                    </div>
+                 </div>
+    
+                 <div className="grid grid-cols-2 md:grid-cols-3 gap-4 w-full max-w-2xl">
+                   {LEVELS.map((lvl, idx) => (
+                     <button 
+                       key={lvl.id}
+                       onClick={() => jumpToLevel(idx)}
+                       className="bg-gray-700 hover:bg-yellow-600 p-4 rounded text-left border border-gray-600 transition-colors"
+                     >
+                       <div className="text-xs text-gray-400">Level {lvl.id}</div>
+                       <div className="font-bold text-white">{lvl.name}</div>
+                       <div className="text-[10px] text-gray-300 italic">{lvl.description}</div>
+                     </button>
+                   ))}
+                 </div>
+                 <button 
+                   onClick={() => setShowDevSelector(false)}
+                   className="mt-8 px-6 py-2 bg-red-600 text-white rounded-full font-bold hover:bg-red-700"
+                 >
+                   Close Selector (Z)
+                 </button>
+               </div>
+             )}
+    
+             {gameStatus === GameStatus.LEVEL_COMPLETE && (
+               <div className="absolute inset-0 bg-black/70 flex items-center justify-center z-50">
+                 <h2 className="text-4xl font-bold text-white animate-bounce">LEVEL COMPLETE!</h2>
+               </div>
+             )}
+    
+             {gameStatus === GameStatus.GAME_OVER && (
+                <div className="absolute inset-0 bg-black/80 flex flex-col items-center justify-center z-50 animate-fade-in">
+                    <h2 className="text-5xl font-extrabold text-red-500 mb-8">YOU CRACKED!</h2>
+                    <button
+                        onClick={resetGame}
+                        className="px-8 py-4 bg-yellow-500 hover:bg-yellow-600 text-gray-900 text-2xl font-bold rounded-full shadow-lg transform hover:scale-105 transition-all duration-300 ease-in-out uppercase tracking-wider focus:outline-none focus:ring-4 focus:ring-yellow-400 focus:ring-opacity-75"
+                    >
+                        Retry
+                    </button>
+                </div>
+             )}
+        </div>
+    );
+  };
 
   return (
-    <div ref={appContainerRef} className="min-h-screen w-full flex items-center justify-center p-4 relative">
-      <button
-        onClick={toggleFullscreen}
-        className="absolute top-4 right-4 bg-gray-700 hover:bg-gray-600 text-white p-2 rounded-full z-50 shadow-md transition-colors"
-        // Fix: Use isFullscreen for aria-label
-        aria-label={isFullscreen ? "Exit fullscreen" : "Enter fullscreen"}
-      >
-        {/* Fix: Use isFullscreen to conditionally render icons */}
-        {isFullscreen ? (
-          <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-6 h-6">
-            <path strokeLinecap="round" strokeLinejoin="round" d="M9 9V4.5M9 9H4.5M9 9L3.75 3.75M9 15v4.5M9 15H4.5M9 15L3.75 20.25M15 9V4.5M15 9H19.5M15 9L20.25 3.75M15 15v4.5M15 15H19.5M15 15L20.25 20.25" />
-          </svg>
-        ) : (
-          <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-6 h-6">
-            <path strokeLinecap="round" strokeLinejoin="round" d="M3.75 3.75v4.5m0-4.5h4.5m-4.5 0L9 9M3.75 20.25v-4.5m0 4.5h4.5m-4.5 0L9 15M20.25 3.75v4.5m0-4.5h-4.5m4.5 0L15 9m5.25 11.25v-4.5m0 4.5h-4.5m4.5 0L15 15" />
-          </svg>
-        )}
-      </button>
-
-      {gameStatus === GameStatus.START_SCREEN && !showDevSelector ? <StartScreen onStartGame={startGame} /> :
-       gameStatus === GameStatus.GAME_WIN && !showDevSelector ? 
-       <EndScreen onRestartGame={resetGame} /> :
-       <div className="flex flex-col items-center w-full max-w-4xl relative">
-         {currentLevel && <GameCanvas currentLevel={currentLevel} player={player} eggStage={eggState.stage} damage={eggState.damage} cameraX={cameraX} />}
-         {currentLevel && gameStatus === GameStatus.PLAYING && <PlayerHUD eggStage={eggState.stage} damage={eggState.damage} unlockedAbilityMessage={unlockedAbilityMessage} />}
-         
-         {showDevSelector && (
-           <div className="absolute inset-0 bg-black/90 z-[60] p-8 overflow-y-auto rounded-lg flex flex-col items-center animate-fade-in">
-             <h2 className="text-3xl font-bold text-yellow-400 mb-6">DEV MENU</h2>
-
-             {/* Evolution Stage Selector */}
-             <div className="mb-6 flex flex-col items-center w-full max-w-xs">
-                 <label htmlFor="dev-egg-stage-select" className="text-gray-300 mb-2 text-lg">Set Evolution Stage:</label>
-                 <select
-                     id="dev-egg-stage-select"
-                     value={devSelectedEggStage}
-                     onChange={handleDevStageChange}
-                     className="bg-gray-800 text-white p-2 rounded border border-gray-600 focus:ring-yellow-400 focus:border-yellow-400 w-full"
-                 >
-                     {Object.values(EggEvolutionStage).map(stage => (
-                         <option key={stage} value={stage}>{stage}</option>
-                     ))}
-                 </select>
-             </div>
-
-             <h3 className="text-2xl font-bold text-yellow-300 mb-4">Jump to Level:</h3>
-             <div className="grid grid-cols-2 md:grid-cols-3 gap-4 w-full">
-               {LEVELS.map((lvl, idx) => (
-                 <button 
-                   key={lvl.id}
-                   onClick={() => jumpToLevel(idx)}
-                   className="bg-gray-700 hover:bg-yellow-600 p-4 rounded text-left border border-gray-600 transition-colors"
-                 >
-                   <div className="text-xs text-gray-400">Level {lvl.id}</div>
-                   <div className="font-bold text-white">{lvl.name}</div>
-                   <div className="text-[10px] text-gray-300 italic">{lvl.description}</div>
-                 </button>
-               ))}
-             </div>
-             <button 
-               onClick={() => setShowDevSelector(false)}
-               className="mt-8 px-6 py-2 bg-red-600 text-white rounded-full font-bold hover:bg-red-700"
-             >
-               Close Dev Menu (Z)
-             </button>
-           </div>
-         )}
-
-         {gameStatus === GameStatus.LEVEL_COMPLETE && (
-           <div className="absolute inset-0 bg-black/70 flex items-center justify-center z-50">
-             <h2 className="text-4xl font-bold text-white animate-bounce">LEVEL COMPLETE!</h2>
-           </div>
-         )}
-
-         {gameStatus === GameStatus.GAME_OVER && (
-            <div className="absolute inset-0 bg-black/80 flex flex-col items-center justify-center z-50 animate-fade-in">
-                <h2 className="text-5xl font-extrabold text-red-500 mb-8">YOU CRACKED!</h2>
-                <button
-                    onClick={resetGame}
-                    className="px-8 py-4 bg-yellow-500 hover:bg-yellow-600 text-gray-900 text-2xl font-bold rounded-full shadow-lg transform hover:scale-105 transition-all duration-300 ease-in-out uppercase tracking-wider focus:outline-none focus:ring-4 focus:ring-yellow-400 focus:ring-opacity_75"
-                >
-                    Retry
-                </button>
-            </div>
-         )}
-       </div>}
+    <div className="w-full h-full flex items-center justify-center bg-black">
+      {renderContent()}
     </div>
   );
 };
