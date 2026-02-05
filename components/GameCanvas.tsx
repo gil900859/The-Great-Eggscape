@@ -369,8 +369,9 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
     } else {
       // Egg Stage
       if ((player.isRolling || player.isDashing) && eggStage === EggEvolutionStage.EGG) {
-        // Roll rotation - depends on displacement but adjust for scale flip
-        const rollDir = player.facingRight ? 1 : -1;
+        // Roll rotation inverted: Now rotates clockwise when moving right and counter-clockwise when moving left
+        // (Note: Scale -1 flips the coordinate system inside this block, so we adjust accordingly)
+        const rollDir = player.facingRight ? -1 : 1;
         ctx.rotate(rollDir * player.x / 14);
       }
 
@@ -394,7 +395,7 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
       }
 
       if (eggStage === EggEvolutionStage.LEGS || eggStage === EggEvolutionStage.WINGS) {
-        // Walk animation for legs
+        // Walk animation for legs - remains the same
         let legOffset = 0;
         if (player.isOnGround && Math.abs(player.velocityX) > 0.5) {
           legOffset = Math.sin(Date.now() / 100) * 5;
