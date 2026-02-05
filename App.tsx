@@ -84,6 +84,7 @@ const App: React.FC = () => {
   const [eggState, setEggState] = useState<EggState>({ stage: EggEvolutionStage.EGG, damage: 0 });
   const [unlockedAbilityMessage, setUnlockedAbilityMessage] = useState<string | null>(null);
   const [showDevSelector, setShowDevSelector] = useState(false);
+  const [showMobileControls, setShowMobileControls] = useState(false);
 
   const [player, setPlayer] = useState<Player>({
     x: PLAYER_START_X, y: PLAYER_START_Y, width: PLAYER_WIDTH, height: PLAYER_HEIGHT,
@@ -231,7 +232,6 @@ const App: React.FC = () => {
         const hasWings = stageIdx >= evolutionOrder.indexOf(EggEvolutionStage.WINGS);
         const isDuck = eggState.stage === EggEvolutionStage.DUCK;
 
-        // Check if Speed Orb boost should end
         if (isSpeedOrbActive && x > speedOrbTargetX) {
           isSpeedOrbActive = false;
         }
@@ -240,7 +240,6 @@ const App: React.FC = () => {
         let speedCap = isSwimming ? WATER_MOVE_SPEED : MOVE_SPEED;
         const fric = isSwimming ? WATER_FRICTION_FACTOR : (isOnGround ? FRICTION_FACTOR : AIR_FRICTION_FACTOR);
 
-        // Apply Speed Orb multipliers
         if (isSpeedOrbActive) {
           speedCap *= SPEED_ORB_BOOST_FACTOR;
           acc *= SPEED_ORB_BOOST_FACTOR;
@@ -315,7 +314,6 @@ const App: React.FC = () => {
           if (checkCollision({ ...p, x, y }, w)) velocityX += w[4] * WIND_STRENGTH_FACTOR;
         });
 
-        // Speed Orb Collision
         currentLevel.speedOrbs?.forEach(orb => {
           if (checkCollision({ ...p, x, y }, orb)) {
             isSpeedOrbActive = true;
@@ -453,9 +451,18 @@ const App: React.FC = () => {
   const toggleSpeedGlitch = () => setPlayer(p => ({ ...p, isGottaGoFastActive: !p.isGottaGoFastActive }));
   const fullHeal = () => setEggState(p => ({ ...p, damage: 0 }));
 
+  const handleTouchStart = (key: string) => { keysPressed.current[key] = true; };
+  const handleTouchEnd = (key: string) => { keysPressed.current[key] = false; };
+
   return (
     <div className="relative w-full h-full flex items-center justify-center overflow-hidden">
-      {gameStatus === GameStatus.START_SCREEN && <StartScreen onStartGame={startGame} />}
+      {gameStatus === GameStatus.START_SCREEN && (
+        <StartScreen 
+          onStartGame={startGame} 
+          onToggleMobileControls={() => setShowMobileControls(!showMobileControls)}
+          mobileControlsEnabled={showMobileControls}
+        />
+      )}
       
       {gameStatus === GameStatus.PLAYING && (
         <>
@@ -471,6 +478,42 @@ const App: React.FC = () => {
             damage={eggState.damage}
             cameraX={cameraX}
           />
+
+          {showMobileControls && (
+            <div className="fixed bottom-4 left-0 right-0 px-8 flex justify-between items-end pointer-events-none z-50 lg:hidden">
+              <div className="flex gap-4 pointer-events-auto">
+                <button 
+                  className="w-16 h-16 bg-white/20 backdrop-blur rounded-full flex items-center justify-center text-4xl active:scale-90 active:bg-white/40 transition-all select-none"
+                  onTouchStart={() => handleTouchStart('ArrowLeft')}
+                  onTouchEnd={() => handleTouchEnd('ArrowLeft')}
+                  onMouseDown={() => handleTouchStart('ArrowLeft')}
+                  onMouseUp={() => handleTouchEnd('ArrowLeft')}
+                >
+                  ⬅️
+                </button>
+                <button 
+                  className="w-16 h-16 bg-white/20 backdrop-blur rounded-full flex items-center justify-center text-4xl active:scale-90 active:bg-white/40 transition-all select-none"
+                  onTouchStart={() => handleTouchStart('ArrowRight')}
+                  onTouchEnd={() => handleTouchEnd('ArrowRight')}
+                  onMouseDown={() => handleTouchStart('ArrowRight')}
+                  onMouseUp={() => handleTouchEnd('ArrowRight')}
+                >
+                  ➡️
+                </button>
+              </div>
+              <div className="flex gap-4 pointer-events-auto">
+                <button 
+                  className="w-20 h-20 bg-yellow-500/30 backdrop-blur rounded-full flex items-center justify-center text-4xl active:scale-90 active:bg-yellow-500/50 transition-all select-none border-2 border-yellow-400/50"
+                  onTouchStart={() => handleTouchStart('ArrowUp')}
+                  onTouchEnd={() => handleTouchEnd('ArrowUp')}
+                  onMouseDown={() => handleTouchStart('ArrowUp')}
+                  onMouseUp={() => handleTouchEnd('ArrowUp')}
+                >
+                  ⬆️
+                </button>
+              </div>
+            </div>
+          )}
         </>
       )}
 
