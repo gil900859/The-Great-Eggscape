@@ -1,3 +1,4 @@
+
 import React, { useRef, useEffect } from 'react';
 import {
   EggEvolutionStage,
@@ -107,22 +108,67 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
       }
     }
 
-    // 3. Wind Zones (before platforms for background effect)
+    // 3. Wind Zones (No Leaves, just streaks)
     if (currentLevel.windZones) {
-        ctx.fillStyle = 'rgba(255, 255, 255, 0.05)';
-        ctx.font = '24px serif';
         currentLevel.windZones.forEach(w => {
             const wx = w[0] - cameraX;
             if (wx + w[2] < 0 || wx > GAME_WIDTH) return;
             
+            ctx.fillStyle = 'rgba(255, 255, 255, 0.03)';
             ctx.fillRect(wx, w[1], w[2], w[3]);
-            // Draw wind particles
-            for(let i=0; i<15; i++) {
-                const particleX = (Date.now() * w[4] * 50 + i * 150) % w[2];
-                const particleY = (i * 57) % w[3];
-                ctx.fillText('🍃', wx + particleX, w[1] + particleY);
+
+            // Draw air streaks
+            ctx.strokeStyle = 'rgba(255, 255, 255, 0.2)';
+            ctx.lineWidth = 1;
+            const windDir = Math.sign(w[4]);
+            for(let i=0; i<20; i++) {
+                const speed = Math.abs(w[4]) * 200;
+                const particleX = (Date.now() * windDir * speed / 10 + i * 200) % w[2];
+                const finalX = particleX < 0 ? w[2] + particleX : particleX;
+                const particleY = (i * 47) % w[3];
+                const streakLen = 30 + Math.abs(w[4]) * 100;
+
+                ctx.beginPath();
+                ctx.moveTo(wx + finalX, w[1] + particleY);
+                ctx.lineTo(wx + finalX + streakLen * windDir, w[1] + particleY);
+                ctx.stroke();
             }
         });
+    }
+
+    // 3b. Speed Orbs
+    if (currentLevel.speedOrbs) {
+      currentLevel.speedOrbs.forEach(orb => {
+        const ox = orb[0] - cameraX;
+        if (ox + orb[2] < 0 || ox > GAME_WIDTH) return;
+
+        const time = Date.now() / 300;
+        const hover = Math.sin(time) * 10;
+        const centerX = ox + orb[2] / 2;
+        const centerY = orb[1] + orb[3] / 2 + hover;
+
+        // Outer Glow
+        const gradient = ctx.createRadialGradient(centerX, centerY, 0, centerX, centerY, 30);
+        gradient.addColorStop(0, 'rgba(0, 255, 255, 0.8)');
+        gradient.addColorStop(1, 'rgba(0, 255, 255, 0)');
+        ctx.fillStyle = gradient;
+        ctx.beginPath();
+        ctx.arc(centerX, centerY, 30, 0, Math.PI * 2);
+        ctx.fill();
+
+        // Core
+        ctx.fillStyle = '#fff';
+        ctx.beginPath();
+        ctx.arc(centerX, centerY, 10 + Math.sin(time * 2) * 2, 0, Math.PI * 2);
+        ctx.fill();
+        
+        // Rings
+        ctx.strokeStyle = 'rgba(0, 255, 255, 0.5)';
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.arc(centerX, centerY, 15 + Math.cos(time) * 3, 0, Math.PI * 2);
+        ctx.stroke();
+      });
     }
 
     // 4. Water Zones
@@ -186,9 +232,10 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
             ctx.fillRect(sx, s[1], s[2], s[3]);
             // Draw chevrons
             ctx.fillStyle = '#0ea5e9'; // Sky-500
+            ctx.font = '14px sans-serif';
             for(let i=0; i<5; i++) {
                 const chevronX = sx + i * (s[2]/5) + 10;
-                ctx.fillText('>>', chevronX, s[1] + s[3]);
+                ctx.fillText('>>', chevronX, s[1] + s[3] - 2);
             }
         });
     }
@@ -199,15 +246,15 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
       if (rx + h[2] < 0 || rx > GAME_WIDTH) return;
 
       let emoji = '🔺';
-      let sizeMultiplier = 1;
-      if (currentLevel.id <= 2) { emoji = '🐎'; sizeMultiplier = 1.6; } // Horse
-      else if (currentLevel.id === 3) { emoji = '🕷️'; sizeMultiplier = 1.2; } // Spiders
-      else if (currentLevel.id === 4) { emoji = '🐀'; sizeMultiplier = 1.1; } // Rats
-      else if (currentLevel.id === 5) { emoji = '💎'; sizeMultiplier = 1; } // Shards
-      else if (currentLevel.id <= 7) { emoji = '🔪'; sizeMultiplier = 1.3; } // Knives
-      else if (currentLevel.id === 8) { emoji = '🌀'; sizeMultiplier = 1.5; } // Fans
-      else if (currentLevel.id <= 10) { emoji = '🔥'; sizeMultiplier = 1.4; } // Fire
-      else { emoji = '👨‍🍳'; sizeMultiplier = 1.8; } // Boss
+      let sizeMultiplier = 1.6;
+      if (currentLevel.id <= 2) { emoji = '🐎'; }
+      else if (currentLevel.id === 3) { emoji = '🕷️'; }
+      else if (currentLevel.id === 4) { emoji = '🐀'; }
+      else if (currentLevel.id === 5) { emoji = '💎'; }
+      else if (currentLevel.id <= 7) { emoji = '🔪'; }
+      else if (currentLevel.id === 8) { emoji = '🌀'; }
+      else if (currentLevel.id <= 10) { emoji = '🔥'; }
+      else { emoji = '👨‍🍳'; }
 
       const baseSize = 30;
       const fontSize = baseSize * sizeMultiplier;
@@ -281,8 +328,9 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
     const px = player.x - cameraX;
     const py = player.y;
 
-    if (player.isDashing || player.isHighJumpActive) {
-      ctx.strokeStyle = 'rgba(255, 255, 255, 0.4)';
+    if (player.isDashing || player.isHighJumpActive || player.isSpeedOrbActive) {
+      const color = player.isSpeedOrbActive ? 'rgba(0, 255, 255, 0.4)' : 'rgba(255, 255, 255, 0.4)';
+      ctx.strokeStyle = color;
       ctx.lineWidth = 2;
       for (let i = 0; i < 3; i++) {
         const offset = (i * 12) - 12;
@@ -291,60 +339,88 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
         ctx.lineTo(px - 50, py + 20 + offset);
         ctx.stroke();
       }
+
+      if (player.isSpeedOrbActive) {
+          // Additional speed orb glow
+          ctx.shadowBlur = 15;
+          ctx.shadowColor = 'cyan';
+      }
     }
 
-    if ((player.isRolling || player.isDashing) && eggStage === EggEvolutionStage.EGG) {
-      ctx.translate(px + PLAYER_WIDTH / 2, py + PLAYER_HEIGHT / 2);
-      ctx.rotate(player.x / 14);
-      ctx.translate(-(px + PLAYER_WIDTH / 2), -(py + PLAYER_HEIGHT / 2));
+    // Determine transformation based on direction
+    const centerX = px + PLAYER_WIDTH / 2;
+    const centerY = py + PLAYER_HEIGHT / 2;
+    ctx.translate(centerX, centerY);
+
+    // Emojis usually face LEFT. If moving right, flip.
+    if (player.facingRight) {
+      ctx.scale(-1, 1);
     }
 
     if (eggStage === EggEvolutionStage.DUCK) {
+      // Waddle animation when moving on ground
+      if (player.isOnGround && Math.abs(player.velocityX) > 0.5) {
+        ctx.rotate(Math.sin(Date.now() / 80) * 0.15);
+      }
       ctx.font = `${PLAYER_HEIGHT}px serif`;
       ctx.textAlign = 'center';
       ctx.textBaseline = 'middle';
-      ctx.fillText('🦆', px + PLAYER_WIDTH / 2, py + PLAYER_HEIGHT / 2);
+      ctx.fillText('🦆', 0, 0);
     } else {
+      // Egg Stage
+      if ((player.isRolling || player.isDashing) && eggStage === EggEvolutionStage.EGG) {
+        // Roll rotation - depends on displacement but adjust for scale flip
+        const rollDir = player.facingRight ? 1 : -1;
+        ctx.rotate(rollDir * player.x / 14);
+      }
+
       ctx.font = `${PLAYER_HEIGHT}px serif`;
       ctx.textAlign = 'center';
       ctx.textBaseline = 'middle';
-      ctx.fillText('🥚', px + PLAYER_WIDTH / 2, py + PLAYER_HEIGHT / 2);
+      ctx.fillText('🥚', 0, 0);
 
+      // Features (Eyes, Legs, Wings)
       if (eggStage !== EggEvolutionStage.EGG) {
         ctx.fillStyle = '#FFF';
         ctx.beginPath();
-        ctx.arc(px + 11, py + 16, 4, 0, Math.PI * 2);
-        ctx.arc(px + 23, py + 16, 4, 0, Math.PI * 2);
+        ctx.arc(-6, -4, 4, 0, Math.PI * 2);
+        ctx.arc(6, -4, 4, 0, Math.PI * 2);
         ctx.fill();
         ctx.fillStyle = '#000';
         ctx.beginPath();
-        ctx.arc(px + 11, py + 16, 2, 0, Math.PI * 2);
-        ctx.arc(px + 23, py + 16, 2, 0, Math.PI * 2);
+        ctx.arc(-6, -4, 2, 0, Math.PI * 2);
+        ctx.arc(6, -4, 2, 0, Math.PI * 2);
         ctx.fill();
       }
 
       if (eggStage === EggEvolutionStage.LEGS || eggStage === EggEvolutionStage.WINGS) {
+        // Walk animation for legs
+        let legOffset = 0;
+        if (player.isOnGround && Math.abs(player.velocityX) > 0.5) {
+          legOffset = Math.sin(Date.now() / 100) * 5;
+        }
         ctx.strokeStyle = '#FF8C00';
         ctx.lineWidth = 3;
         ctx.beginPath();
-        ctx.moveTo(px + 10, py + 34);
-        ctx.lineTo(px + 10, py + 46);
-        ctx.lineTo(px + 5, py + 46);
+        ctx.moveTo(-6, 14);
+        ctx.lineTo(-6, 26 + (legOffset > 0 ? legOffset : 0));
+        ctx.lineTo(-11, 26 + (legOffset > 0 ? legOffset : 0));
         ctx.stroke();
         ctx.beginPath();
-        ctx.moveTo(px + 22, py + 34);
-        ctx.lineTo(px + 22, py + 46);
-        ctx.lineTo(px + 27, py + 46);
+        ctx.moveTo(6, 14);
+        ctx.lineTo(6, 26 + (legOffset < 0 ? -legOffset : 0));
+        ctx.lineTo(1, 26 + (legOffset < 0 ? -legOffset : 0));
         ctx.stroke();
       }
 
       if (eggStage === EggEvolutionStage.WINGS) {
+        const wingFlap = player.isGliding ? Math.sin(Date.now() / 50) * 5 : 0;
         ctx.fillStyle = 'rgba(255, 255, 255, 0.85)';
         ctx.beginPath();
-        ctx.ellipse(px - 4, py + 22, 9, 14, Math.PI / 4, 0, Math.PI * 2);
+        ctx.ellipse(-20, 2 + wingFlap, 9, 14, Math.PI / 4, 0, Math.PI * 2);
         ctx.fill();
         ctx.beginPath();
-        ctx.ellipse(px + 36, py + 22, 9, 14, -Math.PI / 4, 0, Math.PI * 2);
+        ctx.ellipse(20, 2 + wingFlap, 9, 14, -Math.PI / 4, 0, Math.PI * 2);
         ctx.fill();
       }
     }
@@ -353,12 +429,12 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
       ctx.strokeStyle = '#ef4444';
       ctx.lineWidth = 1.5;
       ctx.beginPath();
-      ctx.moveTo(px + 6, py + 6); ctx.lineTo(px + 16, py + 16);
+      ctx.moveTo(-10, -10); ctx.lineTo(0, 0);
       if (damage >= (MAX_HEALTH / 3)) {
-          ctx.moveTo(px + 26, py + 12); ctx.lineTo(px + 16, py + 26);
+          ctx.moveTo(10, -4); ctx.lineTo(0, 10);
       }
       if (damage >= (MAX_HEALTH * 2 / 3)) {
-          ctx.moveTo(px + 8, py + 32); ctx.lineTo(px + 26, py + 36);
+          ctx.moveTo(-8, 16); ctx.lineTo(10, 20);
       }
       ctx.stroke();
     }

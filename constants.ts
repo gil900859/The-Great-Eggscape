@@ -1,4 +1,5 @@
-import { EggEvolutionStage, Level, GameObject, WindZoneObject } from './types';
+
+import { EggEvolutionStage, Level, GameObject, WindZoneObject, SpeedOrbObject } from './types';
 
 // Game Constants
 export const GAME_WIDTH = 800;
@@ -27,8 +28,9 @@ export const WATER_BUOYANCY = -0.4;
 
 // New mechanics constants
 export const TRAMPOLINE_BOUNCE_STRENGTH = -15;
-export const WIND_STRENGTH_FACTOR = 0.1;
+export const WIND_STRENGTH_FACTOR = 1.15; // Impactful push back
 export const SPEED_RAMP_BOOST_FACTOR = 2.5;
+export const SPEED_ORB_BOOST_FACTOR = 3.0;
 
 export const CAMERA_FOLLOW_THRESHOLD = GAME_WIDTH / 2.5;
 export const MAX_HEALTH = 100;
@@ -39,7 +41,7 @@ export const ABILITY_ACTIVATE_COOLDOWN = 300;
 // Level Length - Increased for much longer levels
 const TOTAL_LEVEL_WIDTH = 12000;
 
-const generateLevelContent = (levelId: number): Pick<Level, 'platforms' | 'hazards' | 'waterZones' | 'endZone' | 'trampolines' | 'speedRamps' | 'windZones'> => {
+const generateLevelContent = (levelId: number): Pick<Level, 'platforms' | 'hazards' | 'waterZones' | 'endZone' | 'trampolines' | 'speedRamps' | 'windZones' | 'speedOrbs'> => {
   const platforms: GameObject[] = [[-50, -1000, 50, GAME_HEIGHT + 2000]]; 
   platforms.push([0, GROUND_Y, 800, 40]);
   if (levelId >= 3) {
@@ -51,6 +53,7 @@ const generateLevelContent = (levelId: number): Pick<Level, 'platforms' | 'hazar
   const trampolines: GameObject[] = [];
   const speedRamps: GameObject[] = [];
   const windZones: WindZoneObject[] = [];
+  const speedOrbs: SpeedOrbObject[] = [];
   
   let currentX = 800;
 
@@ -69,8 +72,13 @@ const generateLevelContent = (levelId: number): Pick<Level, 'platforms' | 'hazar
     if (r < 0.15 && levelId > 4) {
       // Wind Challenge
       const windWidth = 800 + Math.random() * 500;
-      const windStrength = (Math.random() > 0.5 ? 1 : -1) * (WIND_STRENGTH_FACTOR + Math.random() * 0.1);
+      // ALWAYS NEGATIVE: Wind now always faces against the player (blowing them back to the left)
+      const windStrength = -1 * (WIND_STRENGTH_FACTOR + Math.random() * 0.1);
       windZones.push([currentX, 0, windWidth, GAME_HEIGHT, windStrength]);
+      
+      // Add Speed Orb at the beginning of wind section
+      speedOrbs.push([currentX - 100, GROUND_Y - 120, 40, 40, currentX + windWidth]);
+      
       addPlatform(windWidth, 20, 0);
       addGap(150);
     } else if (r < 0.3) {
@@ -81,7 +89,6 @@ const generateLevelContent = (levelId: number): Pick<Level, 'platforms' | 'hazar
         const platW = 120 + Math.random() * 80;
         addPlatform(platW, 20, platY);
         if (Math.random() > 0.7 && levelId > 3) {
-          // Add a trampoline to this platform
           trampolines.push([currentX - platW + platW / 4, GROUND_Y - platY - 10, platW / 2, 10]);
         }
         if (Math.random() > 0.8) {
@@ -132,7 +139,7 @@ const generateLevelContent = (levelId: number): Pick<Level, 'platforms' | 'hazar
   platforms.push([currentX, GROUND_Y, 2000, 40]);
   const endZone: GameObject = [currentX + 1500, GROUND_Y - 100, 100, 100];
 
-  return { platforms, hazards, waterZones, endZone, trampolines, speedRamps, windZones };
+  return { platforms, hazards, waterZones, endZone, trampolines, speedRamps, windZones, speedOrbs };
 };
 
 export const LEVELS: Level[] = [

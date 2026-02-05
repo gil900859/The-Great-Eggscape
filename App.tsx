@@ -13,6 +13,7 @@ import {
   Player,
   GameObject,
   WindZoneObject,
+  SpeedOrbObject,
 } from './types';
 import {
   LEVELS,
@@ -43,11 +44,12 @@ import {
   WATER_FRICTION_FACTOR,
   TRAMPOLINE_BOUNCE_STRENGTH,
   SPEED_RAMP_BOOST_FACTOR,
+  SPEED_ORB_BOOST_FACTOR,
   WIND_STRENGTH_FACTOR,
   DUCK_FLY_STRENGTH,
 } from './constants';
 
-const checkCollision = (obj1: GameObject | Player, obj2: GameObject | WindZoneObject): boolean => {
+const checkCollision = (obj1: GameObject | Player, obj2: GameObject | WindZoneObject | SpeedOrbObject): boolean => {
   const [x1, y1, w1, h1] = Array.isArray(obj1) ? obj1 : [obj1.x, obj1.y, obj1.width, obj1.height];
   const [x2, y2, w2, h2] = obj2;
   return x1 < x2 + w2 && x1 + w1 > x2 && y1 < y2 + h2 && y1 + h1 > y2;
@@ -87,7 +89,8 @@ const App: React.FC = () => {
     x: PLAYER_START_X, y: PLAYER_START_Y, width: PLAYER_WIDTH, height: PLAYER_HEIGHT,
     velocityX: 0, velocityY: 0, isOnGround: false, isSwimming: false,
     isRolling: false, isJumping: false, isGliding: false, isDashing: false, isHighJumpActive: false,
-    isDevFlyMode: false, isGottaGoFastActive: false,
+    isDevFlyMode: false, isGottaGoFastActive: false, facingRight: true,
+    isSpeedOrbActive: false, speedOrbTargetX: 0,
   });
   const [cameraX, setCameraX] = useState(0);
 
@@ -111,7 +114,8 @@ const App: React.FC = () => {
       x: PLAYER_START_X, y: PLAYER_START_Y, width: PLAYER_WIDTH, height: PLAYER_HEIGHT,
       velocityX: 0, velocityY: 0, isOnGround: false, isSwimming: false,
       isRolling: false, isJumping: false, isGliding: false, isDashing: false, isHighJumpActive: false,
-      isDevFlyMode: false, isGottaGoFastActive: false,
+      isDevFlyMode: false, isGottaGoFastActive: false, facingRight: true,
+      isSpeedOrbActive: false, speedOrbTargetX: 0,
     });
     setCameraX(0);
     setGameStatus(GameStatus.START_SCREEN);
@@ -127,6 +131,9 @@ const App: React.FC = () => {
       velocityY: 0,
       isDashing: false,
       isHighJumpActive: false,
+      facingRight: true,
+      isSpeedOrbActive: false,
+      speedOrbTargetX: 0,
     }));
     setCameraX(0);
     setGameStatus(GameStatus.PLAYING);
@@ -139,7 +146,12 @@ const App: React.FC = () => {
     setCurrentLevelIndex(safeIndex);
     const naturalStage = getNaturalStageForLevel(safeIndex);
     setEggState({ stage: naturalStage, damage: 0 });
-    setPlayer(p => ({ ...p, x: PLAYER_START_X, y: PLAYER_START_Y, velocityX: 0, velocityY: 0, isDashing: false, isHighJumpActive: false }));
+    setPlayer(p => ({ 
+      ...p, 
+      x: PLAYER_START_X, y: PLAYER_START_Y, velocityX: 0, velocityY: 0, 
+      isDashing: false, isHighJumpActive: false, facingRight: true, 
+      isSpeedOrbActive: false, speedOrbTargetX: 0 
+    }));
     setCameraX(0);
     if (gameStatus === GameStatus.START_SCREEN || gameStatus === GameStatus.GAME_OVER) {
       setGameStatus(GameStatus.PLAYING);
@@ -170,7 +182,11 @@ const App: React.FC = () => {
 
       setCurrentLevelIndex(prevIdx => {
         if (prevIdx < LEVELS.length - 1) {
-          setPlayer(p => ({ ...p, x: PLAYER_START_X, y: PLAYER_START_Y, velocityX: 0, velocityY: 0, isDashing: false, isHighJumpActive: false }));
+          setPlayer(p => ({ 
+            ...p, x: PLAYER_START_X, y: PLAYER_START_Y, velocityX: 0, velocityY: 0, 
+            isDashing: false, isHighJumpActive: false, facingRight: true,
+            isSpeedOrbActive: false, speedOrbTargetX: 0
+          }));
           setCameraX(0);
           setGameStatus(GameStatus.PLAYING);
           return prevIdx + 1;
@@ -192,15 +208,15 @@ const App: React.FC = () => {
   const updateGame = useCallback(() => {
     const now = Date.now();
     setPlayer(p => {
-      let { x, y, velocityX, velocityY, isOnGround, isSwimming, isJumping, isGliding, isRolling, isDashing, isHighJumpActive, isDevFlyMode, isGottaGoFastActive } = p;
+      let { x, y, velocityX, velocityY, isOnGround, isSwimming, isJumping, isGliding, isRolling, isDashing, isHighJumpActive, isDevFlyMode, isGottaGoFastActive, facingRight, isSpeedOrbActive, speedOrbTargetX } = p;
       const move = keysPressed.current;
 
       isHighJumpActive = now < highJumpTimerRef.current;
 
       if (isDevFlyMode) {
         const devSpeed = 15;
-        if (move['ArrowLeft']) velocityX = -devSpeed;
-        else if (move['ArrowRight']) velocityX = devSpeed;
+        if (move['ArrowLeft']) { velocityX = -devSpeed; facingRight = false; }
+        else if (move['ArrowRight']) { velocityX = devSpeed; facingRight = true; }
         else velocityX = 0;
 
         if (move['ArrowUp']) velocityY = -devSpeed;
@@ -215,16 +231,29 @@ const App: React.FC = () => {
         const hasWings = stageIdx >= evolutionOrder.indexOf(EggEvolutionStage.WINGS);
         const isDuck = eggState.stage === EggEvolutionStage.DUCK;
 
-        const acc = isOnGround ? 0.8 : 0.4;
+        // Check if Speed Orb boost should end
+        if (isSpeedOrbActive && x > speedOrbTargetX) {
+          isSpeedOrbActive = false;
+        }
+
+        let acc = isOnGround ? 0.8 : 0.4;
         let speedCap = isSwimming ? WATER_MOVE_SPEED : MOVE_SPEED;
         const fric = isSwimming ? WATER_FRICTION_FACTOR : (isOnGround ? FRICTION_FACTOR : AIR_FRICTION_FACTOR);
+
+        // Apply Speed Orb multipliers
+        if (isSpeedOrbActive) {
+          speedCap *= SPEED_ORB_BOOST_FACTOR;
+          acc *= SPEED_ORB_BOOST_FACTOR;
+        }
 
         if (move['ArrowLeft']) {
           velocityX -= acc;
           isRolling = true;
+          facingRight = false;
         } else if (move['ArrowRight']) {
           velocityX += acc;
           isRolling = true;
+          facingRight = true;
         } else {
           isRolling = Math.abs(velocityX) > 0.5;
         }
@@ -284,6 +313,14 @@ const App: React.FC = () => {
 
         currentLevel.windZones?.forEach(w => {
           if (checkCollision({ ...p, x, y }, w)) velocityX += w[4] * WIND_STRENGTH_FACTOR;
+        });
+
+        // Speed Orb Collision
+        currentLevel.speedOrbs?.forEach(orb => {
+          if (checkCollision({ ...p, x, y }, orb)) {
+            isSpeedOrbActive = true;
+            speedOrbTargetX = orb[4];
+          }
         });
 
         x += velocityX;
@@ -354,10 +391,11 @@ const App: React.FC = () => {
            velocityX = 0;
            velocityY = 0;
            isDashing = false;
+           isSpeedOrbActive = false;
         }
       }
 
-      return { ...p, x, y, velocityX, velocityY, isOnGround, isSwimming, isJumping, isGliding, isRolling, isDashing, isHighJumpActive, isDevFlyMode, isGottaGoFastActive };
+      return { ...p, x, y, velocityX, velocityY, isOnGround, isSwimming, isJumping, isGliding, isRolling, isDashing, isHighJumpActive, isDevFlyMode, isGottaGoFastActive, facingRight, isSpeedOrbActive, speedOrbTargetX };
     });
 
     setCameraX(prev => {

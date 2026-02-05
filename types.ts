@@ -1,3 +1,4 @@
+
 export enum EggEvolutionStage {
   EGG = 'Egg',
   EYES = 'Eyes',
@@ -22,6 +23,7 @@ export interface EggState {
 // Define a simple rectangle type for game objects
 export type GameObject = [number, number, number, number]; // [x, y, width, height]
 export type WindZoneObject = [number, number, number, number, number]; // [x, y, width, height, strength]
+export type SpeedOrbObject = [number, number, number, number, number]; // [x, y, width, height, deactivateX]
 
 export interface Level {
   id: number;
@@ -44,6 +46,7 @@ export interface Level {
   trampolines?: GameObject[];
   speedRamps?: GameObject[];
   windZones?: WindZoneObject[];
+  speedOrbs?: SpeedOrbObject[];
 }
 
 export interface AbilityMessage {
@@ -69,4 +72,7 @@ export interface Player {
   isHighJumpActive: boolean; // True during the 2-second dash-jump buff
   isDevFlyMode: boolean; // Toggle for developer flight
   isGottaGoFastActive: boolean; // Cheat code state
+  facingRight: boolean; // Directional orientation
+  isSpeedOrbActive: boolean; // True when speed orb boost is active
+  speedOrbTargetX: number; // X coordinate at which the speed boost deactivates
 }
