@@ -480,10 +480,10 @@ const App: React.FC = () => {
           />
 
           {showMobileControls && (
-            <div className="fixed bottom-4 left-0 right-0 px-8 flex justify-between items-end pointer-events-none z-50 lg:hidden">
+            <div className="fixed bottom-4 left-0 right-0 px-8 flex justify-between items-end pointer-events-none z-[100]">
               <div className="flex gap-4 pointer-events-auto">
                 <button 
-                  className="w-16 h-16 bg-white/20 backdrop-blur rounded-full flex items-center justify-center text-4xl active:scale-90 active:bg-white/40 transition-all select-none"
+                  className="w-16 h-16 bg-white/40 backdrop-blur-sm rounded-full flex items-center justify-center text-4xl active:scale-90 active:bg-white/60 transition-all select-none shadow-lg border border-white/30"
                   onTouchStart={() => handleTouchStart('ArrowLeft')}
                   onTouchEnd={() => handleTouchEnd('ArrowLeft')}
                   onMouseDown={() => handleTouchStart('ArrowLeft')}
@@ -492,7 +492,7 @@ const App: React.FC = () => {
                   ⬅️
                 </button>
                 <button 
-                  className="w-16 h-16 bg-white/20 backdrop-blur rounded-full flex items-center justify-center text-4xl active:scale-90 active:bg-white/40 transition-all select-none"
+                  className="w-16 h-16 bg-white/40 backdrop-blur-sm rounded-full flex items-center justify-center text-4xl active:scale-90 active:bg-white/60 transition-all select-none shadow-lg border border-white/30"
                   onTouchStart={() => handleTouchStart('ArrowRight')}
                   onTouchEnd={() => handleTouchEnd('ArrowRight')}
                   onMouseDown={() => handleTouchStart('ArrowRight')}
@@ -503,13 +503,22 @@ const App: React.FC = () => {
               </div>
               <div className="flex gap-4 pointer-events-auto">
                 <button 
-                  className="w-20 h-20 bg-yellow-500/30 backdrop-blur rounded-full flex items-center justify-center text-4xl active:scale-90 active:bg-yellow-500/50 transition-all select-none border-2 border-yellow-400/50"
+                  className="w-20 h-20 bg-yellow-500/50 backdrop-blur-sm rounded-full flex items-center justify-center text-4xl active:scale-90 active:bg-yellow-500/70 transition-all select-none border-2 border-yellow-400/50 shadow-lg"
                   onTouchStart={() => handleTouchStart('ArrowUp')}
                   onTouchEnd={() => handleTouchEnd('ArrowUp')}
                   onMouseDown={() => handleTouchStart('ArrowUp')}
                   onMouseUp={() => handleTouchEnd('ArrowUp')}
                 >
                   ⬆️
+                </button>
+                <button 
+                  className="w-16 h-16 bg-blue-500/50 backdrop-blur-sm rounded-full flex items-center justify-center text-4xl active:scale-90 active:bg-blue-500/70 transition-all select-none border-2 border-blue-400/50 shadow-lg"
+                  onTouchStart={() => handleTouchStart(' ')}
+                  onTouchEnd={() => handleTouchEnd(' ')}
+                  onMouseDown={() => handleTouchStart(' ')}
+                  onMouseUp={() => handleTouchEnd(' ')}
+                >
+                  🪽
                 </button>
               </div>
             </div>
