@@ -38,8 +38,8 @@ export const HAZARD_DAMAGE = 34; // 3 hits to lose
 export const DAMAGE_COOLDOWN = 1200;
 export const ABILITY_ACTIVATE_COOLDOWN = 300;
 
-// Level Length - Increased for much longer levels
-const TOTAL_LEVEL_WIDTH = 12000;
+// Level Length - Doubled from 12000 to 24000 as requested
+const TOTAL_LEVEL_WIDTH = 24000;
 
 const generateLevelContent = (levelId: number): Pick<Level, 'platforms' | 'hazards' | 'waterZones' | 'endZone' | 'trampolines' | 'speedRamps' | 'windZones' | 'speedOrbs'> => {
   const platforms: GameObject[] = [[-50, -1000, 50, GAME_HEIGHT + 2000]]; 
