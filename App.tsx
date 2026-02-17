@@ -49,6 +49,8 @@ import {
   DUCK_FLY_STRENGTH,
 } from './constants';
 
+const TICK_RATE = 20; // 50 TPS (1000ms / 50)
+
 const checkCollision = (obj1: GameObject | Player, obj2: GameObject | WindZoneObject | SpeedOrbObject): boolean => {
   const [x1, y1, w1, h1] = Array.isArray(obj1) ? obj1 : [obj1.x, obj1.y, obj1.width, obj1.height];
   const [x2, y2, w2, h2] = obj2;
@@ -97,12 +99,17 @@ const App: React.FC = () => {
 
   const keysPressed = useRef<{ [key: string]: boolean }>({});
   const typedSequence = useRef<string>('');
+  const mobileSecretRef = useRef<string[]>([]);
   const sequenceTimer = useRef<number | null>(null);
   const highJumpTimerRef = useRef(0);
   const damageCooldownRef = useRef(0);
   const gameLoopRef = useRef<number | null>(null);
   const jumpTimer = useRef(0);
   const flapCooldownRef = useRef(0);
+  
+  // Timing refs for fixed timestep
+  const lastTimeRef = useRef<number>(performance.now());
+  const accumulatorRef = useRef<number>(0);
 
   const currentLevel: Level = LEVELS[currentLevelIndex] || LEVELS[0];
 
@@ -140,7 +147,11 @@ const App: React.FC = () => {
     setGameStatus(GameStatus.PLAYING);
   }, []);
 
-  const startGame = useCallback(() => setGameStatus(GameStatus.PLAYING), []);
+  const startGame = useCallback(() => {
+    lastTimeRef.current = performance.now();
+    accumulatorRef.current = 0;
+    setGameStatus(GameStatus.PLAYING);
+  }, []);
 
   const jumpToLevel = (index: number) => {
     const safeIndex = Math.max(0, Math.min(index, LEVELS.length - 1));
@@ -206,7 +217,8 @@ const App: React.FC = () => {
     }
   }, [eggState.damage, gameStatus]);
 
-  const updateGame = useCallback(() => {
+  // The actual physics tick logic
+  const performPhysicsStep = useCallback(() => {
     const now = Date.now();
     setPlayer(p => {
       let { x, y, velocityX, velocityY, isOnGround, isSwimming, isJumping, isGliding, isRolling, isDashing, isHighJumpActive, isDevFlyMode, isGottaGoFastActive, facingRight, isSpeedOrbActive, speedOrbTargetX } = p;
@@ -395,7 +407,23 @@ const App: React.FC = () => {
 
       return { ...p, x, y, velocityX, velocityY, isOnGround, isSwimming, isJumping, isGliding, isRolling, isDashing, isHighJumpActive, isDevFlyMode, isGottaGoFastActive, facingRight, isSpeedOrbActive, speedOrbTargetX };
     });
+  }, [eggState.stage, currentLevel, handleLevelCompletion]);
 
+  // The rendering frame loop
+  const updateGame = useCallback((time: number) => {
+    const deltaTime = time - lastTimeRef.current;
+    lastTimeRef.current = time;
+    
+    // Accumulate time since last frame
+    accumulatorRef.current += deltaTime;
+
+    // Run as many ticks as needed to catch up
+    while (accumulatorRef.current >= TICK_RATE) {
+      performPhysicsStep();
+      accumulatorRef.current -= TICK_RATE;
+    }
+
+    // Camera update - smoothed per frame for visual fluidness
     setCameraX(prev => {
       const target = player.x - CAMERA_FOLLOW_THRESHOLD;
       const nextX = prev + (target - prev) * 0.1;
@@ -403,10 +431,11 @@ const App: React.FC = () => {
     });
 
     gameLoopRef.current = requestAnimationFrame(updateGame);
-  }, [player.x, currentLevel, gameStatus, handleLevelCompletion, eggState.stage]);
+  }, [player.x, performPhysicsStep]);
 
   useEffect(() => {
     if (gameStatus === GameStatus.PLAYING) {
+      lastTimeRef.current = performance.now();
       gameLoopRef.current = requestAnimationFrame(updateGame);
     } else if (gameLoopRef.current) {
       cancelAnimationFrame(gameLoopRef.current);
@@ -451,7 +480,23 @@ const App: React.FC = () => {
   const toggleSpeedGlitch = () => setPlayer(p => ({ ...p, isGottaGoFastActive: !p.isGottaGoFastActive }));
   const fullHeal = () => setEggState(p => ({ ...p, damage: 0 }));
 
-  const handleTouchStart = (key: string) => { keysPressed.current[key] = true; };
+  const handleTouchStart = (key: string) => { 
+    keysPressed.current[key] = true; 
+
+    // Secret sequence logic for mobile
+    const expected = [...Array(10).fill(' '), 'ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowUp'];
+    mobileSecretRef.current.push(key);
+    if (mobileSecretRef.current.length > expected.length) {
+      mobileSecretRef.current.shift();
+    }
+    if (mobileSecretRef.current.length === expected.length) {
+      const isMatch = mobileSecretRef.current.every((k, i) => k === expected[i]);
+      if (isMatch) {
+        setShowDevSelector(prev => !prev);
+        mobileSecretRef.current = [];
+      }
+    }
+  };
   const handleTouchEnd = (key: string) => { keysPressed.current[key] = false; };
 
   return (
