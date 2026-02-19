@@ -95,7 +95,7 @@ const App: React.FC = () => {
     velocityX: 0, velocityY: 0, isOnGround: false, isSwimming: false,
     isRolling: false, isJumping: false, isGliding: false, isDashing: false, isHighJumpActive: false,
     isDevFlyMode: false, isGottaGoFastActive: false, facingRight: true,
-    isSpeedOrbActive: false, speedOrbTargetX: 0, isDashTriggered: false,
+    isSpeedOrbActive: false, speedOrbTargetX: 0,
   });
   const [cameraX, setCameraX] = useState(0);
 
@@ -128,7 +128,7 @@ const App: React.FC = () => {
       velocityX: 0, velocityY: 0, isOnGround: false, isSwimming: false,
       isRolling: false, isJumping: false, isGliding: false, isDashing: false, isHighJumpActive: false,
       isDevFlyMode: false, isGottaGoFastActive: false, facingRight: true,
-      isSpeedOrbActive: false, speedOrbTargetX: 0, isDashTriggered: false,
+      isSpeedOrbActive: false, speedOrbTargetX: 0,
     });
     setCameraX(0);
     setGameStatus(GameStatus.START_SCREEN);
@@ -147,7 +147,6 @@ const App: React.FC = () => {
       facingRight: true,
       isSpeedOrbActive: false,
       speedOrbTargetX: 0,
-      isDashTriggered: false,
     }));
     setCameraX(0);
     setGameStatus(GameStatus.PLAYING);
@@ -168,7 +167,7 @@ const App: React.FC = () => {
       ...p, 
       x: PLAYER_START_X, y: PLAYER_START_Y, velocityX: 0, velocityY: 0, 
       isDashing: false, isHighJumpActive: false, facingRight: true, 
-      isSpeedOrbActive: false, speedOrbTargetX: 0, isDashTriggered: false 
+      isSpeedOrbActive: false, speedOrbTargetX: 0 
     }));
     setCameraX(0);
     if (gameStatus === GameStatus.START_SCREEN || gameStatus === GameStatus.GAME_OVER) {
@@ -203,7 +202,7 @@ const App: React.FC = () => {
           setPlayer(p => ({ 
             ...p, x: PLAYER_START_X, y: PLAYER_START_Y, velocityX: 0, velocityY: 0, 
             isDashing: false, isHighJumpActive: false, facingRight: true,
-            isSpeedOrbActive: false, speedOrbTargetX: 0, isDashTriggered: false
+            isSpeedOrbActive: false, speedOrbTargetX: 0
           }));
           setCameraX(0);
           setGameStatus(GameStatus.PLAYING);
@@ -227,21 +226,21 @@ const App: React.FC = () => {
   const performPhysicsStep = useCallback(() => {
     const now = Date.now();
     setPlayer(p => {
-      let { x, y, velocityX, velocityY, isOnGround, isSwimming, isJumping, isGliding, isRolling, isDashing, isHighJumpActive, isDevFlyMode, isGottaGoFastActive, facingRight, isSpeedOrbActive, speedOrbTargetX, isDashTriggered } = p;
+      let { x, y, velocityX, velocityY, isOnGround, isSwimming, isJumping, isGliding, isRolling, isDashing, isHighJumpActive, isDevFlyMode, isGottaGoFastActive, facingRight, isSpeedOrbActive, speedOrbTargetX } = p;
       const move = keysPressed.current;
+      const isDashHeld = move['Control'] || move['Shift'] || move['Dash'];
 
-      isHighJumpActive = now < highJumpTimerRef.current;
-
-      // Handle dashing separately
-      if (isDashTriggered && isOnGround && Math.abs(velocityX) > MOVE_SPEED * 0.7) {
+      if (isDashHeld && isOnGround && Math.abs(velocityX) > MOVE_SPEED * 0.7) {
         const dashTargetSpeed = MOVE_SPEED * DASH_BOOST;
-        velocityX = Math.sign(velocityX) * dashTargetSpeed;
+        if (Math.abs(velocityX) < dashTargetSpeed) {
+          velocityX = Math.sign(velocityX) * dashTargetSpeed;
+        }
         isDashing = true;
-        highJumpTimerRef.current = now + DASH_BUFF_DURATION;
         isHighJumpActive = true;
+      } else if (!isDashHeld) {
+        isDashing = false;
+        isHighJumpActive = false;
       }
-      isDashTriggered = false; // Reset dash trigger
-
 
       if (isDevFlyMode) {
         const devSpeed = 15 * PHYSICS_SCALE;
@@ -413,7 +412,7 @@ const App: React.FC = () => {
         }
       }
 
-      return { ...p, x, y, velocityX, velocityY, isOnGround, isSwimming, isJumping, isGliding, isRolling, isDashing, isHighJumpActive, isDevFlyMode, isGottaGoFastActive, facingRight, isSpeedOrbActive, speedOrbTargetX, isDashTriggered };
+      return { ...p, x, y, velocityX, velocityY, isOnGround, isSwimming, isJumping, isGliding, isRolling, isDashing, isHighJumpActive, isDevFlyMode, isGottaGoFastActive, facingRight, isSpeedOrbActive, speedOrbTargetX };
     });
   }, [eggState.stage, currentLevel, handleLevelCompletion]);
 
@@ -467,10 +466,6 @@ const App: React.FC = () => {
         e.preventDefault();
       }
 
-      if ((e.key === 'Control' || e.key === 'Shift') && gameStatus === GameStatus.PLAYING) {
-        setPlayer(p => ({ ...p, isDashTriggered: true }));
-      }
-
       typedSequence.current += e.key.toLowerCase();
       if (sequenceTimer.current) clearTimeout(sequenceTimer.current);
       sequenceTimer.current = window.setTimeout(() => {
@@ -518,12 +513,7 @@ const App: React.FC = () => {
       }
     }
   };
-  const handleTouchEnd = (key: string) => {
-    keysPressed.current[key] = false;
-    if (key === 'Dash') {
-      setPlayer(p => ({ ...p, isDashTriggered: false })); // Reset dash trigger on touch end
-    }
-  };
+  const handleTouchEnd = (key: string) => { keysPressed.current[key] = false; };
 
   return (
     <div className="relative w-full h-full flex items-center justify-center overflow-hidden">
