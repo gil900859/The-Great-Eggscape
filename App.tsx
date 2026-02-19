@@ -95,7 +95,7 @@ const App: React.FC = () => {
     velocityX: 0, velocityY: 0, isOnGround: false, isSwimming: false,
     isRolling: false, isJumping: false, isGliding: false, isDashing: false, isHighJumpActive: false,
     isDevFlyMode: false, isGottaGoFastActive: false, facingRight: true,
-    isSpeedOrbActive: false, speedOrbTargetX: 0,
+    isSpeedOrbActive: false, speedOrbTargetX: 0, isDashTriggered: false,
   });
   const [cameraX, setCameraX] = useState(0);
 
@@ -128,7 +128,7 @@ const App: React.FC = () => {
       velocityX: 0, velocityY: 0, isOnGround: false, isSwimming: false,
       isRolling: false, isJumping: false, isGliding: false, isDashing: false, isHighJumpActive: false,
       isDevFlyMode: false, isGottaGoFastActive: false, facingRight: true,
-      isSpeedOrbActive: false, speedOrbTargetX: 0,
+      isSpeedOrbActive: false, speedOrbTargetX: 0, isDashTriggered: false,
     });
     setCameraX(0);
     setGameStatus(GameStatus.START_SCREEN);
@@ -147,6 +147,7 @@ const App: React.FC = () => {
       facingRight: true,
       isSpeedOrbActive: false,
       speedOrbTargetX: 0,
+      isDashTriggered: false,
     }));
     setCameraX(0);
     setGameStatus(GameStatus.PLAYING);
@@ -167,7 +168,7 @@ const App: React.FC = () => {
       ...p, 
       x: PLAYER_START_X, y: PLAYER_START_Y, velocityX: 0, velocityY: 0, 
       isDashing: false, isHighJumpActive: false, facingRight: true, 
-      isSpeedOrbActive: false, speedOrbTargetX: 0 
+      isSpeedOrbActive: false, speedOrbTargetX: 0, isDashTriggered: false 
     }));
     setCameraX(0);
     if (gameStatus === GameStatus.START_SCREEN || gameStatus === GameStatus.GAME_OVER) {
@@ -202,7 +203,7 @@ const App: React.FC = () => {
           setPlayer(p => ({ 
             ...p, x: PLAYER_START_X, y: PLAYER_START_Y, velocityX: 0, velocityY: 0, 
             isDashing: false, isHighJumpActive: false, facingRight: true,
-            isSpeedOrbActive: false, speedOrbTargetX: 0
+            isSpeedOrbActive: false, speedOrbTargetX: 0, isDashTriggered: false
           }));
           setCameraX(0);
           setGameStatus(GameStatus.PLAYING);
@@ -226,10 +227,21 @@ const App: React.FC = () => {
   const performPhysicsStep = useCallback(() => {
     const now = Date.now();
     setPlayer(p => {
-      let { x, y, velocityX, velocityY, isOnGround, isSwimming, isJumping, isGliding, isRolling, isDashing, isHighJumpActive, isDevFlyMode, isGottaGoFastActive, facingRight, isSpeedOrbActive, speedOrbTargetX } = p;
+      let { x, y, velocityX, velocityY, isOnGround, isSwimming, isJumping, isGliding, isRolling, isDashing, isHighJumpActive, isDevFlyMode, isGottaGoFastActive, facingRight, isSpeedOrbActive, speedOrbTargetX, isDashTriggered } = p;
       const move = keysPressed.current;
 
       isHighJumpActive = now < highJumpTimerRef.current;
+
+      // Handle dashing separately
+      if (isDashTriggered && isOnGround && Math.abs(velocityX) > MOVE_SPEED * 0.7) {
+        const dashTargetSpeed = MOVE_SPEED * DASH_BOOST;
+        velocityX = Math.sign(velocityX) * dashTargetSpeed;
+        isDashing = true;
+        highJumpTimerRef.current = now + DASH_BUFF_DURATION;
+        isHighJumpActive = true;
+      }
+      isDashTriggered = false; // Reset dash trigger
+
 
       if (isDevFlyMode) {
         const devSpeed = 15 * PHYSICS_SCALE;
@@ -288,15 +300,6 @@ const App: React.FC = () => {
             isOnGround = false;
             isJumping = true;
             jumpTimer.current = PHYSICS_SCALE;
-
-            if (!isSwimming && Math.abs(velocityX) > speedCap * 0.7) {
-              const dashTargetSpeed = speedCap * DASH_BOOST;
-              velocityX = Math.sign(velocityX) * dashTargetSpeed;
-              isDashing = true;
-              highJumpTimerRef.current = now + DASH_BUFF_DURATION;
-              isHighJumpActive = true;
-              velocityY = currentJumpPower * JUMP_BOOST_MULTIPLIER;
-            }
           } else if (jumpTimer.current > 0 && jumpTimer.current < MAX_JUMP_TIME && isJumping) {
             velocityY -= (hasLegs ? 0.4 : 0.2) * PHYSICS_SCALE;
             jumpTimer.current += PHYSICS_SCALE;
@@ -410,7 +413,7 @@ const App: React.FC = () => {
         }
       }
 
-      return { ...p, x, y, velocityX, velocityY, isOnGround, isSwimming, isJumping, isGliding, isRolling, isDashing, isHighJumpActive, isDevFlyMode, isGottaGoFastActive, facingRight, isSpeedOrbActive, speedOrbTargetX };
+      return { ...p, x, y, velocityX, velocityY, isOnGround, isSwimming, isJumping, isGliding, isRolling, isDashing, isHighJumpActive, isDevFlyMode, isGottaGoFastActive, facingRight, isSpeedOrbActive, speedOrbTargetX, isDashTriggered };
     });
   }, [eggState.stage, currentLevel, handleLevelCompletion]);
 
@@ -460,8 +463,12 @@ const App: React.FC = () => {
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       keysPressed.current[e.key] = true;
-      if (['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', ' '].includes(e.key)) {
+      if (['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', ' ', 'Control', 'Shift'].includes(e.key)) {
         e.preventDefault();
+      }
+
+      if ((e.key === 'Control' || e.key === 'Shift') && gameStatus === GameStatus.PLAYING) {
+        setPlayer(p => ({ ...p, isDashTriggered: true }));
       }
 
       typedSequence.current += e.key.toLowerCase();
@@ -511,7 +518,12 @@ const App: React.FC = () => {
       }
     }
   };
-  const handleTouchEnd = (key: string) => { keysPressed.current[key] = false; };
+  const handleTouchEnd = (key: string) => {
+    keysPressed.current[key] = false;
+    if (key === 'Dash') {
+      setPlayer(p => ({ ...p, isDashTriggered: false })); // Reset dash trigger on touch end
+    }
+  };
 
   return (
     <div className="relative w-full h-full flex items-center justify-center overflow-hidden">
@@ -570,6 +582,15 @@ const App: React.FC = () => {
                   onMouseUp={() => handleTouchEnd('ArrowUp')}
                 >
                   ⬆️
+                </button>
+                <button 
+                  className="w-16 h-16 bg-red-500/50 backdrop-blur-sm rounded-full flex items-center justify-center text-4xl active:scale-90 active:bg-red-500/70 transition-all select-none border-2 border-red-400/50 shadow-lg"
+                  onTouchStart={() => handleTouchStart('Dash')}
+                  onTouchEnd={() => handleTouchEnd('Dash')}
+                  onMouseDown={() => handleTouchStart('Dash')}
+                  onMouseUp={() => handleTouchEnd('Dash')}
+                >
+                  💨
                 </button>
                 <button 
                   className="w-16 h-16 bg-blue-500/50 backdrop-blur-sm rounded-full flex items-center justify-center text-4xl active:scale-90 active:bg-blue-500/70 transition-all select-none border-2 border-blue-400/50 shadow-lg"

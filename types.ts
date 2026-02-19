@@ -75,4 +75,5 @@ export interface Player {
   facingRight: boolean; // Directional orientation
   isSpeedOrbActive: boolean; // True when speed orb boost is active
   speedOrbTargetX: number; // X coordinate at which the speed boost deactivates
+  isDashTriggered: boolean; // True if dash button was pressed this tick
 }
