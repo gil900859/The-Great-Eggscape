@@ -1,19 +1,46 @@
 
-import React from 'react';
+import React, { useState, useRef } from 'react';
 import { ABILITY_MESSAGES, LEVELS } from '../constants';
 import { EggEvolutionStage } from '../types';
 
 interface StartScreenProps {
   onStartGame: () => void;
   onToggleMobileControls: () => void;
+  onToggleDevMenu: () => void;
   mobileControlsEnabled: boolean;
 }
 
 const StartScreen: React.FC<StartScreenProps> = ({ 
   onStartGame, 
   onToggleMobileControls,
+  onToggleDevMenu,
   mobileControlsEnabled 
 }) => {
+  const [clickCount, setClickCount] = useState(0);
+  const clickTimerRef = useRef<number | null>(null);
+
+  const handleMobileIconClick = () => {
+    // Regular toggle logic remains for accessibility and normal use
+    onToggleMobileControls();
+
+    // Track clicks specifically for dev menu (triple click detection)
+    const newCount = clickCount + 1;
+    setClickCount(newCount);
+
+    if (clickTimerRef.current) {
+      window.clearTimeout(clickTimerRef.current);
+    }
+
+    if (newCount === 3) {
+      onToggleDevMenu();
+      setClickCount(0);
+    } else {
+      clickTimerRef.current = window.setTimeout(() => {
+        setClickCount(0);
+      }, 500);
+    }
+  };
+
   return (
     <div className="flex flex-col items-center justify-center text-center p-8 bg-gray-800 rounded-lg shadow-xl animate-fade-in max-w-2xl w-full mx-4 max-h-[90vh]">
       <h1 className="text-5xl md:text-6xl font-extrabold mb-4 text-yellow-300 drop-shadow-lg uppercase italic tracking-tighter">
@@ -32,7 +59,7 @@ const StartScreen: React.FC<StartScreenProps> = ({
         </button>
         
         <button
-          onClick={onToggleMobileControls}
+          onClick={handleMobileIconClick}
           title={mobileControlsEnabled ? 'Disable Mobile UI' : 'Enable Mobile UI'}
           className={`w-12 h-12 rounded-full flex items-center justify-center text-xl transition-all border-2 shadow-lg transform hover:scale-110 active:scale-95 ${
             mobileControlsEnabled 
@@ -68,6 +95,9 @@ const StartScreen: React.FC<StartScreenProps> = ({
           </p>
           <p className="text-sm text-gray-400 mt-2 italic">
             Tip: Momentum is key. Roll fast before jumping to perform a Dash Jump!
+          </p>
+          <p className="text-[10px] text-gray-500 mt-4 opacity-50">
+            Secret: Triple-tap the phone icon for developer tools.
           </p>
         </div>
       </div>

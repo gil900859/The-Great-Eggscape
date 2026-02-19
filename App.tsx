@@ -49,7 +49,9 @@ import {
   DUCK_FLY_STRENGTH,
 } from './constants';
 
-const TICK_RATE = 20; // 50 TPS (1000ms / 50)
+const TARGET_TPS = 240;
+const TICK_RATE = 1000 / TARGET_TPS;
+const PHYSICS_SCALE = 50 / TARGET_TPS; // Original constants were tuned for 50 TPS
 
 const checkCollision = (obj1: GameObject | Player, obj2: GameObject | WindZoneObject | SpeedOrbObject): boolean => {
   const [x1, y1, w1, h1] = Array.isArray(obj1) ? obj1 : [obj1.x, obj1.y, obj1.width, obj1.height];
@@ -110,6 +112,9 @@ const App: React.FC = () => {
   // Timing refs for fixed timestep
   const lastTimeRef = useRef<number>(performance.now());
   const accumulatorRef = useRef<number>(0);
+  const lastFrameTimeRef = useRef<number>(0);
+  const TARGET_FPS = 120;
+  const FRAME_DURATION = 1000 / TARGET_FPS;
 
   const currentLevel: Level = LEVELS[currentLevelIndex] || LEVELS[0];
 
@@ -227,16 +232,16 @@ const App: React.FC = () => {
       isHighJumpActive = now < highJumpTimerRef.current;
 
       if (isDevFlyMode) {
-        const devSpeed = 15;
-        if (move['ArrowLeft']) { velocityX = -devSpeed; facingRight = false; }
-        else if (move['ArrowRight']) { velocityX = devSpeed; facingRight = true; }
+        const devSpeed = 15 * PHYSICS_SCALE;
+        if (move['ArrowLeft']) { velocityX = -devSpeed * (1/PHYSICS_SCALE); facingRight = false; }
+        else if (move['ArrowRight']) { velocityX = devSpeed * (1/PHYSICS_SCALE); facingRight = true; }
         else velocityX = 0;
 
-        if (move['ArrowUp']) velocityY = -devSpeed;
-        else if (move['ArrowDown']) velocityY = devSpeed;
+        if (move['ArrowUp']) velocityY = -devSpeed * (1/PHYSICS_SCALE);
+        else if (move['ArrowDown']) velocityY = devSpeed * (1/PHYSICS_SCALE);
         else velocityY = 0;
 
-        x += velocityX; y += velocityY;
+        x += velocityX * PHYSICS_SCALE; y += velocityY * PHYSICS_SCALE;
         isOnGround = false; isSwimming = false;
       } else {
         const stageIdx = evolutionOrder.indexOf(eggState.stage);
@@ -248,7 +253,7 @@ const App: React.FC = () => {
           isSpeedOrbActive = false;
         }
 
-        let acc = isOnGround ? 0.8 : 0.4;
+        let acc = (isOnGround ? 0.8 : 0.4) * PHYSICS_SCALE;
         let speedCap = isSwimming ? WATER_MOVE_SPEED : MOVE_SPEED;
         const fric = isSwimming ? WATER_FRICTION_FACTOR : (isOnGround ? FRICTION_FACTOR : AIR_FRICTION_FACTOR);
 
@@ -268,10 +273,10 @@ const App: React.FC = () => {
         } else {
           isRolling = Math.abs(velocityX) > 0.5;
         }
-        velocityX *= fric;
+        velocityX *= Math.pow(fric, PHYSICS_SCALE);
 
         if (!isGottaGoFastActive && Math.abs(velocityX) > speedCap * 1.5 && !isDashing) {
-           velocityX *= 0.95;
+           velocityX *= Math.pow(0.95, PHYSICS_SCALE);
         }
 
         let currentJumpPower = hasLegs ? JUMP_STRENGTH : BASE_JUMP_STRENGTH;
@@ -282,7 +287,7 @@ const App: React.FC = () => {
             velocityY = currentJumpPower;
             isOnGround = false;
             isJumping = true;
-            jumpTimer.current = 1;
+            jumpTimer.current = PHYSICS_SCALE;
 
             if (!isSwimming && Math.abs(velocityX) > speedCap * 0.7) {
               const dashTargetSpeed = speedCap * DASH_BOOST;
@@ -293,8 +298,8 @@ const App: React.FC = () => {
               velocityY = currentJumpPower * JUMP_BOOST_MULTIPLIER;
             }
           } else if (jumpTimer.current > 0 && jumpTimer.current < MAX_JUMP_TIME && isJumping) {
-            velocityY -= (hasLegs ? 0.4 : 0.2);
-            jumpTimer.current++;
+            velocityY -= (hasLegs ? 0.4 : 0.2) * PHYSICS_SCALE;
+            jumpTimer.current += PHYSICS_SCALE;
           }
         } else {
           jumpTimer.current = 0;
@@ -307,7 +312,7 @@ const App: React.FC = () => {
             isJumping = true;
             flapCooldownRef.current = now + 150;
           } else if (velocityY > 0) {
-            velocityY *= GLIDE_GRAVITY_FACTOR;
+            velocityY *= Math.pow(GLIDE_GRAVITY_FACTOR, PHYSICS_SCALE);
             isGliding = true;
           }
         } else {
@@ -315,15 +320,15 @@ const App: React.FC = () => {
         }
 
         if (isSwimming) {
-          velocityY += WATER_BUOYANCY;
+          velocityY += WATER_BUOYANCY * PHYSICS_SCALE;
         } else {
-          velocityY += GRAVITY;
+          velocityY += GRAVITY * PHYSICS_SCALE;
         }
 
-        if (isGottaGoFastActive) velocityX *= 1.05;
+        if (isGottaGoFastActive) velocityX *= Math.pow(1.05, PHYSICS_SCALE);
 
         currentLevel.windZones?.forEach(w => {
-          if (checkCollision({ ...p, x, y }, w)) velocityX += w[4] * WIND_STRENGTH_FACTOR;
+          if (checkCollision({ ...p, x, y }, w)) velocityX += w[4] * WIND_STRENGTH_FACTOR * PHYSICS_SCALE;
         });
 
         currentLevel.speedOrbs?.forEach(orb => {
@@ -333,8 +338,8 @@ const App: React.FC = () => {
           }
         });
 
-        x += velocityX;
-        y += velocityY;
+        x += velocityX * PHYSICS_SCALE;
+        y += velocityY * PHYSICS_SCALE;
 
         isOnGround = false;
         isSwimming = false;
@@ -374,7 +379,7 @@ const App: React.FC = () => {
 
         currentLevel.speedRamps?.forEach(s => {
            if (checkCollision({ ...p, x, y }, s)) {
-              velocityX *= SPEED_RAMP_BOOST_FACTOR;
+              velocityX *= Math.pow(SPEED_RAMP_BOOST_FACTOR, PHYSICS_SCALE);
            }
         });
 
@@ -411,6 +416,13 @@ const App: React.FC = () => {
 
   // The rendering frame loop
   const updateGame = useCallback((time: number) => {
+    const frameDelta = time - lastFrameTimeRef.current;
+    if (frameDelta < FRAME_DURATION) {
+      gameLoopRef.current = requestAnimationFrame(updateGame);
+      return;
+    }
+    lastFrameTimeRef.current = time;
+
     const deltaTime = time - lastTimeRef.current;
     lastTimeRef.current = time;
     
@@ -426,12 +438,14 @@ const App: React.FC = () => {
     // Camera update - smoothed per frame for visual fluidness
     setCameraX(prev => {
       const target = player.x - CAMERA_FOLLOW_THRESHOLD;
-      const nextX = prev + (target - prev) * 0.1;
+      // Smooth camera follow, adjusted for frame rate
+      const smoothing = 1 - Math.pow(1 - 0.1, frameDelta / 16.66);
+      const nextX = prev + (target - prev) * Math.min(1, smoothing);
       return Math.max(0, nextX);
     });
 
     gameLoopRef.current = requestAnimationFrame(updateGame);
-  }, [player.x, performPhysicsStep]);
+  }, [player.x, performPhysicsStep, FRAME_DURATION]);
 
   useEffect(() => {
     if (gameStatus === GameStatus.PLAYING) {
@@ -505,6 +519,7 @@ const App: React.FC = () => {
         <StartScreen 
           onStartGame={startGame} 
           onToggleMobileControls={() => setShowMobileControls(!showMobileControls)}
+          onToggleDevMenu={() => setShowDevSelector(!showDevSelector)}
           mobileControlsEnabled={showMobileControls}
         />
       )}
