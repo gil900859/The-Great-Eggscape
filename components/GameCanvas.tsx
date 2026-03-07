@@ -1,5 +1,5 @@
 
-import React, { useRef, useEffect } from 'react';
+import React, { useRef, useEffect, forwardRef, useImperativeHandle } from 'react';
 import {
   EggEvolutionStage,
   Level,
@@ -15,17 +15,19 @@ interface GameCanvasProps {
   cameraX: number;
 }
 
-const GameCanvas: React.FC<GameCanvasProps> = ({
+const GameCanvas = forwardRef<HTMLCanvasElement, GameCanvasProps>(({
   currentLevel,
   player,
   eggStage,
   damage,
   cameraX,
-}) => {
-  const canvasRef = useRef<HTMLCanvasElement>(null);
+}, ref) => {
+  const internalCanvasRef = useRef<HTMLCanvasElement>(null);
+
+  useImperativeHandle(ref, () => internalCanvasRef.current!);
 
   useEffect(() => {
-    const canvas = canvasRef.current;
+    const canvas = internalCanvasRef.current;
     if (!canvas || !currentLevel) return;
     const ctx = canvas.getContext('2d');
     if (!ctx) return;
@@ -454,10 +456,10 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
 
   return (
     <canvas
-      ref={canvasRef}
+      ref={internalCanvasRef}
       className="w-full h-full shadow-2xl bg-black"
     />
   );
-};
+});
 
 export default GameCanvas;

@@ -8,7 +8,7 @@ interface EndScreenProps {
 const EndScreen: React.FC<EndScreenProps> = ({ onRestartGame }) => {
   // This component now only handles the win state.
   const title = 'THE GREAT EGGSCAPE COMPLETE!';
-  const message = 'The shell is gone. The duck stands fully formed. The mother is saved!';
+  const message = '';
   const emoji = '🦆';
   const bgColor = 'bg-green-700';
   const textColor = 'text-green-200';
@@ -27,7 +27,6 @@ const EndScreen: React.FC<EndScreenProps> = ({ onRestartGame }) => {
       </div>
 
       <p className="text-lg text-gray-100 mb-6 max-w-lg">
-        You successfully transformed into a magnificent duck and saved your mother!
       </p>
 
       <button

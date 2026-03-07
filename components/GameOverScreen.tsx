@@ -13,7 +13,6 @@ const GameOverScreen: React.FC<GameOverScreenProps> = ({ onRestartLevel, onMainM
         CRACKED!
       </h1>
       <p className="text-2xl italic text-red-200 mb-8">
-        The shell has failed. The kitchen is calling...
       </p>
 
       <div className="text-8xl mb-8 animate-bounce">

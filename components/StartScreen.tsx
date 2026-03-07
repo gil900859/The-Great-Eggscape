@@ -23,7 +23,7 @@ const StartScreen: React.FC<StartScreenProps> = ({
     // Regular toggle logic remains for accessibility and normal use
     onToggleMobileControls();
 
-    // Track clicks specifically for dev menu (triple click detection)
+    // Track clicks specifically for dev menu (7 click detection as requested)
     const newCount = clickCount + 1;
     setClickCount(newCount);
 
@@ -31,13 +31,13 @@ const StartScreen: React.FC<StartScreenProps> = ({
       window.clearTimeout(clickTimerRef.current);
     }
 
-    if (newCount === 3) {
-      onToggleDevMenu();
+    if (newCount === 7) {
+      onToggleDevMenu(); // This will now be part of the larger sequence in App.tsx
       setClickCount(0);
     } else {
       clickTimerRef.current = window.setTimeout(() => {
         setClickCount(0);
-      }, 500);
+      }, 1000); // Increased timeout for easier 7-tap
     }
   };
 
@@ -47,7 +47,6 @@ const StartScreen: React.FC<StartScreenProps> = ({
         The Great Eggscape
       </h1>
       <p className="text-xl md:text-2xl italic text-gray-300 mb-8">
-        One egg. One escape. Before the fry.
       </p>
 
       <div className="flex items-center gap-4 justify-center">
@@ -92,12 +91,6 @@ const StartScreen: React.FC<StartScreenProps> = ({
         <div className="mt-6 pt-4 border-t border-gray-600">
           <p className="text-gray-200">
             Complete <span className="font-bold text-yellow-200">{LEVELS.length} levels</span> to save your mother!
-          </p>
-          <p className="text-sm text-gray-400 mt-2 italic">
-            Tip: Momentum is key. Roll fast before jumping to perform a Dash Jump!
-          </p>
-          <p className="text-[10px] text-gray-500 mt-4 opacity-50">
-            Secret: Triple-tap the phone icon for developer tools.
           </p>
         </div>
       </div>
