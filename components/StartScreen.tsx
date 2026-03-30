@@ -31,13 +31,13 @@ const StartScreen: React.FC<StartScreenProps> = ({
       window.clearTimeout(clickTimerRef.current);
     }
 
-    if (newCount === 7) {
-      onToggleDevMenu(); // This will now be part of the larger sequence in App.tsx
+    if (newCount === 3) {
+      onToggleDevMenu();
       setClickCount(0);
     } else {
       clickTimerRef.current = window.setTimeout(() => {
         setClickCount(0);
-      }, 1000); // Increased timeout for easier 7-tap
+      }, 500); // Standard triple-click window
     }
   };
 

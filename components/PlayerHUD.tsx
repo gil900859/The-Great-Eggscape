@@ -6,14 +6,12 @@ interface PlayerHUDProps {
   eggStage: EggEvolutionStage;
   damage: number;
   unlockedAbilityMessage: string | null;
-  onBlueSquareClick?: () => void;
 }
 
 const PlayerHUD: React.FC<PlayerHUDProps> = ({
   eggStage,
   damage,
   unlockedAbilityMessage,
-  onBlueSquareClick,
 }) => {
   const healthPercentage = Math.max(0, ((MAX_HEALTH - damage) / MAX_HEALTH) * 100);
   let healthColor = 'bg-green-500';
@@ -28,13 +26,6 @@ const PlayerHUD: React.FC<PlayerHUDProps> = ({
     <div className="absolute top-2 left-0 right-0 px-4 z-20 flex justify-center items-start pointer-events-none">
       {/* Center HUD */}
       <div className="flex flex-col items-center gap-2 bg-gray-800 bg-opacity-80 p-3 rounded-lg shadow-lg pointer-events-auto relative">
-        {/* Blue Square for cheat code */}
-        <div 
-          onClick={onBlueSquareClick}
-          className="absolute -top-1 -right-1 w-3 h-3 bg-blue-500 rounded-sm cursor-pointer opacity-50 hover:opacity-100 transition-opacity"
-          title="Secret"
-        />
-        
         <div className="text-center">
           <div className="flex items-center justify-center gap-2">
             <span className="text-3xl" role="img" aria-label="egg-emoji">

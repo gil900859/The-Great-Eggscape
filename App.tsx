@@ -90,6 +90,7 @@ const App: React.FC = () => {
   const [showDevSelector, setShowDevSelector] = useState(false);
   const [showMobileControls, setShowMobileControls] = useState(false);
 
+  const [isMobileDashToggled, setIsMobileDashToggled] = useState(false);
   const [player, setPlayer] = useState<Player>({
     x: PLAYER_START_X, y: PLAYER_START_Y, width: PLAYER_WIDTH, height: PLAYER_HEIGHT,
     velocityX: 0, velocityY: 0, isOnGround: false, isSwimming: false,
@@ -101,7 +102,6 @@ const App: React.FC = () => {
 
   const keysPressed = useRef<{ [key: string]: boolean }>({});
   const typedSequence = useRef<string>('');
-  const mobileSecretRef = useRef<string[]>([]);
   const sequenceTimer = useRef<number | null>(null);
   const highJumpTimerRef = useRef(0);
   const damageCooldownRef = useRef(0);
@@ -122,6 +122,7 @@ const App: React.FC = () => {
     setCurrentLevelIndex(0);
     setEggState({ stage: EggEvolutionStage.EGG, damage: 0 });
     setUnlockedAbilityMessage(null);
+    setIsMobileDashToggled(false);
     highJumpTimerRef.current = 0;
     setPlayer({
       x: PLAYER_START_X, y: PLAYER_START_Y, width: PLAYER_WIDTH, height: PLAYER_HEIGHT,
@@ -136,6 +137,7 @@ const App: React.FC = () => {
 
   const restartLevel = useCallback(() => {
     setEggState(prev => ({ ...prev, damage: 0 }));
+    setIsMobileDashToggled(false);
     setPlayer(p => ({
       ...p,
       x: PLAYER_START_X,
@@ -199,6 +201,7 @@ const App: React.FC = () => {
 
       setCurrentLevelIndex(prevIdx => {
         if (prevIdx < LEVELS.length - 1) {
+          setIsMobileDashToggled(false);
           setPlayer(p => ({ 
             ...p, x: PLAYER_START_X, y: PLAYER_START_Y, velocityX: 0, velocityY: 0, 
             isDashing: false, isHighJumpActive: false, facingRight: true,
@@ -229,15 +232,19 @@ const App: React.FC = () => {
       let { x, y, velocityX, velocityY, isOnGround, isSwimming, isJumping, isGliding, isRolling, isDashing, isHighJumpActive, isDevFlyMode, isGottaGoFastActive, facingRight, isSpeedOrbActive, speedOrbTargetX } = p;
       const move = keysPressed.current;
       const isDashHeld = move['Control'] || move['Shift'] || move['Dash'];
+      const isDashActive = isDashHeld || isMobileDashToggled;
 
-      if (isDashHeld && isOnGround && Math.abs(velocityX) > MOVE_SPEED * 0.7) {
+      if (isDashActive) {
         const dashTargetSpeed = MOVE_SPEED * DASH_BOOST;
-        if (Math.abs(velocityX) < dashTargetSpeed) {
-          velocityX = Math.sign(velocityX) * dashTargetSpeed;
+        // Apply dash boost if moving
+        if (Math.abs(velocityX) > 0.1) {
+          if (Math.abs(velocityX) < dashTargetSpeed) {
+            velocityX = Math.sign(velocityX) * dashTargetSpeed;
+          }
         }
         isDashing = true;
         isHighJumpActive = true;
-      } else if (!isDashHeld) {
+      } else {
         isDashing = false;
         isHighJumpActive = false;
       }
@@ -357,7 +364,6 @@ const App: React.FC = () => {
                  velocityY = 0;
                  isOnGround = true;
                  isJumping = false;
-                 isDashing = false; 
               } else if (p.y >= platform[1] + platform[3] - 10 && velocityY < 0) {
                  y = platform[1] + platform[3];
                  velocityY = 0;
@@ -375,7 +381,6 @@ const App: React.FC = () => {
            if (checkCollision({ ...p, x, y }, t)) {
               velocityY = TRAMPOLINE_BOUNCE_STRENGTH;
               isOnGround = false;
-              isDashing = false; 
            }
         });
 
@@ -392,7 +397,6 @@ const App: React.FC = () => {
               damageCooldownRef.current = now + DAMAGE_COOLDOWN;
               velocityY = -5;
               velocityX = (x < h[0] + h[2]/2) ? -8 : 8;
-              isDashing = false; 
             }
           });
         }
@@ -407,7 +411,6 @@ const App: React.FC = () => {
            y = PLAYER_START_Y;
            velocityX = 0;
            velocityY = 0;
-           isDashing = false;
            isSpeedOrbActive = false;
         }
       }
@@ -498,20 +501,6 @@ const App: React.FC = () => {
 
   const handleTouchStart = (key: string) => { 
     keysPressed.current[key] = true; 
-
-    // Secret sequence logic for mobile
-    const expected = [...Array(10).fill(' '), 'ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowUp'];
-    mobileSecretRef.current.push(key);
-    if (mobileSecretRef.current.length > expected.length) {
-      mobileSecretRef.current.shift();
-    }
-    if (mobileSecretRef.current.length === expected.length) {
-      const isMatch = mobileSecretRef.current.every((k, i) => k === expected[i]);
-      if (isMatch) {
-        setShowDevSelector(prev => !prev);
-        mobileSecretRef.current = [];
-      }
-    }
   };
   const handleTouchEnd = (key: string) => { keysPressed.current[key] = false; };
 
@@ -533,6 +522,39 @@ const App: React.FC = () => {
             damage={eggState.damage} 
             unlockedAbilityMessage={unlockedAbilityMessage}
           />
+
+          {/* Mobile Toggle Button during Gameplay */}
+          <div className="absolute top-4 right-4 z-50 pointer-events-auto">
+            <button
+              onClick={() => {
+                setShowMobileControls(!showMobileControls);
+                // Triple-click logic for dev menu
+                const now = Date.now();
+                const lastClick = (window as any).lastMobileIconClick || 0;
+                const clickCount = (window as any).mobileIconClickCount || 0;
+                
+                if (now - lastClick < 500) {
+                  const newCount = clickCount + 1;
+                  (window as any).mobileIconClickCount = newCount;
+                  if (newCount >= 3) {
+                    setShowDevSelector(!showDevSelector);
+                    (window as any).mobileIconClickCount = 0;
+                  }
+                } else {
+                  (window as any).mobileIconClickCount = 1;
+                }
+                (window as any).lastMobileIconClick = now;
+              }}
+              className={`w-10 h-10 rounded-full flex items-center justify-center text-lg transition-all border-2 shadow-lg ${
+                showMobileControls 
+                ? 'bg-blue-600 border-blue-400 text-white' 
+                : 'bg-gray-700 border-gray-600 text-gray-400 opacity-50 hover:opacity-100'
+              }`}
+            >
+              📱
+            </button>
+          </div>
+
           <GameCanvas 
             currentLevel={currentLevel}
             player={player}
@@ -574,11 +596,8 @@ const App: React.FC = () => {
                   ⬆️
                 </button>
                 <button 
-                  className="w-16 h-16 bg-red-500/50 backdrop-blur-sm rounded-full flex items-center justify-center text-4xl active:scale-90 active:bg-red-500/70 transition-all select-none border-2 border-red-400/50 shadow-lg"
-                  onTouchStart={() => handleTouchStart('Dash')}
-                  onTouchEnd={() => handleTouchEnd('Dash')}
-                  onMouseDown={() => handleTouchStart('Dash')}
-                  onMouseUp={() => handleTouchEnd('Dash')}
+                  className={`w-16 h-16 ${isMobileDashToggled ? 'bg-red-600 scale-110 border-red-200' : 'bg-red-500/50 border-red-400/50'} backdrop-blur-sm rounded-full flex items-center justify-center text-4xl active:scale-90 transition-all select-none border-2 shadow-lg z-50`}
+                  onClick={() => setIsMobileDashToggled(!isMobileDashToggled)}
                 >
                   💨
                 </button>
